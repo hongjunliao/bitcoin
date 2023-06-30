@@ -11,7 +11,7 @@
 	
 #### 构建与测试
 
-1. 添加依赖,参见 [deps/README.md](/doc)
+1. 添加依赖,参见 [deps/README.md](/deps/README.md)
 2. 使用cmake构建：`mkdir build && cd build && cmake .. && make`
 
 #### 进度
