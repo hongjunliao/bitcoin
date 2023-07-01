@@ -80,15 +80,36 @@ enum
     SER_BLOCKHEADERONLY = (1 << 17),
 };
 
+#ifdef _MSC_VER
+#define sleep_micro Sleep
+#else
+#define sleep_micro usleep
+#endif	//
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 string strprintf(const char* format, ...);
 bool error(const char* format, ...);
-void RandAddSeed(bool fPerfmon=false);
 template<typename T>
 string HexStr(const T itbegin, const T itend, bool fSpaces=true);
 template<typename T>
 string HexNumStr(const T itbegin, const T itend, bool f0x=true);
+
+void RandAddSeed(bool fPerfmon=false);
+int my_snprintf(char* buffer, size_t limit, const char* format, ...);
+string strprintf(const char* format, ...);
+bool error(const char* format, ...);
+void PrintException(std::exception* pex, const char* pszThread);
+void ParseString(const string& str, char c, vector<string>& v);
+string FormatMoney(int64 n, bool fPlus=false);
+bool ParseMoney(const char* pszIn, int64& nRet);
+bool FileExists(const char* psz);
+int GetFilesize(FILE* file);
+uint64 GetRand(uint64 nMax);
+int64 GetTime();
+int64 GetAdjustedTime();
+void AddTimeData(unsigned int ip, int64 nTime);
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 // This is needed because the foreach macro can't get over the comma in pair<t1, t2>
 #define PAIRTYPE(t1, t2)    pair<t1, t2>

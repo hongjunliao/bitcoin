@@ -11,6 +11,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 #include "headers.h"
 #include "util.h"
+
+#include <openssl/rand.h>
+
 #include "uint256.h"
 #include <cstdarg>
 #include <set>
@@ -31,27 +34,6 @@ std::string strprintf(const char* format, ...)
 
     return ret;
 }
-template<typename T>
-string HexStr(const T itbegin, const T itend, bool fSpaces)
-{
-    const unsigned char* pbegin = (const unsigned char*)&itbegin[0];
-    const unsigned char* pend = pbegin + (itend - itbegin) * sizeof(itbegin[0]);
-    string str;
-    for (const unsigned char* p = pbegin; p != pend; p++)
-        str += strprintf((fSpaces && p != pend-1 ? "%02x " : "%02x"), *p);
-    return str;
-}
-
-template<typename T>
-string HexNumStr(const T itbegin, const T itend, bool f0x)
-{
-    const unsigned char* pbegin = (const unsigned char*)&itbegin[0];
-    const unsigned char* pend = pbegin + (itend - itbegin) * sizeof(itbegin[0]);
-    string str = (f0x ? "0x" : "");
-    for (const unsigned char* p = pend-1; p >= pbegin; p--)
-        str += strprintf("%02X", *p);
-    return str;
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +51,21 @@ bool error(const char* format, ...)
 }
 
 void RandAddSeed(bool fPerfmon) {}
+
+uint64 GetRand(uint64 nMax)
+{
+    if (nMax == 0)
+        return 0;
+
+    // The range of the random source must be a multiple of the modulus
+    // to give every possible output value an equal possibility
+    uint64 nRange = (SIZE_MAX / nMax) * nMax;
+    uint64 nRand = 0;
+    do
+        RAND_bytes((unsigned char*)&nRand, sizeof(nRand));
+    while (nRand >= nRange);
+    return (nRand % nMax);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +90,21 @@ static int64 nTimeOffset = 0;
 int64 GetAdjustedTime()
 {
     return GetTime() + nTimeOffset;
+}
+
+
+string FormatMoney(int64 n, bool fPlus)
+{
+    n /= CENT;
+    string str = strprintf("%I64d.%02I64d", (n > 0 ? n : -n)/100, (n > 0 ? n : -n)%100);
+    for (int i = 6; i < str.size(); i += 4)
+        if (isdigit(str[str.size() - i - 1]))
+            str.insert(str.size() - i, 1, ',');
+    if (n < 0)
+        str.insert((unsigned int)0, 1, '-');
+    else if (fPlus && n > 0)
+        str.insert((unsigned int)0, 1, '+');
+    return str;
 }
 
 void AddTimeData(unsigned int ip, int64 nTime)

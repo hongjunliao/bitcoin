@@ -9,19 +9,19 @@
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
 /////////////////////////////////////////////////////////////////////////////////////////////
+#include "headers.h"
+#include "db.h"
+#include "main.h"
+
+extern bool fClient;
+
+
 
 
 //
 // CDB
 //
 
-#include "headers.h"
-#include "db.h"
-
-#include <db_cxx.h>
-#include <stdexcept>
-
-using std::runtime_error;
 //static CCriticalSection cs_db;
 static bool fDbEnvInit = false;
 DbEnv dbenv(0);
@@ -44,6 +44,19 @@ public:
 }
 instance_of_cdbinit;
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+bool CDB::TxnBegin()
+{
+    if (!pdb)
+        return false;
+    DbTxn* ptxn = NULL;
+    int ret = dbenv.txn_begin(GetTxn(), &ptxn, 0);
+    if (!ptxn || ret != 0)
+        return false;
+    vTxn.push_back(ptxn);
+    return true;
+}
 
 CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
 {
@@ -61,16 +74,16 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
     if (!fReadOnly || fTxn)
         nFlags |= DB_AUTO_COMMIT;
 
-    ////CRITICAL_BLOCK(cs_db)
+    //CRITICAL_BLOCK(cs_db)
     {
         if (!fDbEnvInit)
         {
 //            string strAppDir = GetAppDir();
 //            string strLogDir = strAppDir + "\\database";
 //            _mkdir(strLogDir.c_str());
-        	string strAppDir = "./", strLogDir= strAppDir;
-            printf("dbenv.open strAppDir=%s\n", strAppDir.c_str());
+//            printf("dbenv.open strAppDir=%s\n", strAppDir.c_str());
 
+        	string strAppDir("."), strLogDir(".");
             dbenv.set_lg_dir(strLogDir.c_str());
             dbenv.set_lg_max(10000000);
             dbenv.set_lk_max_locks(10000);
@@ -79,7 +92,7 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
             ///dbenv.log_set_config(DB_LOG_AUTO_REMOVE, 1); /// causes corruption
             try{
 				ret = dbenv.open(strAppDir.c_str(),
-	//                             DB_CREATE     |
+	                             DB_CREATE     |
 								 DB_INIT_LOCK  |
 								 DB_INIT_LOG   |
 								 DB_INIT_MPOOL |
@@ -95,8 +108,9 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
 			} catch (std::exception &e) {
 				std::cerr << "Error: " << e.what() << std::endl;
 			} catch(...){}
-//            if (ret > 0)
-//                throw runtime_error(strprintf("CDB() : error %d opening database environment\n", ret));
+            if (ret > 0)
+                throw std::runtime_error(strprintf("CDB() : error %d opening database environment\n", ret));
+            fDbEnvInit = true;
         }
 
         strFile = pszFile;
@@ -104,6 +118,7 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
     }
 
     pdb = new Db(&dbenv, 0);
+
     try{
         ret = pdb->open(NULL,      // Txn pointer
                         pszFile,   // Filename
@@ -120,10 +135,10 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
     if (ret > 0)
     {
         delete pdb; pdb = NULL;
-        ////CRITICAL_BLOCK(cs_db)
+        //CRITICAL_BLOCK(cs_db)
             --mapFileUseCount[strFile];
         strFile = "";
-        throw runtime_error(strprintf("CDB() : can't open database file %s, error %d\n", pszFile, ret));
+        throw std::runtime_error(strprintf("CDB() : can't open database file %s, error %d\n", pszFile, ret));
     }
 
     if (fCreate && !Exists(string("version")))
@@ -144,7 +159,7 @@ void CDB::Close()
     pdb = NULL;
     dbenv.txn_checkpoint(0, 0, 0);
 
-    ////CRITICAL_BLOCK(cs_db)
+    //CRITICAL_BLOCK(cs_db)
         --mapFileUseCount[strFile];
 
     RandAddSeed();
@@ -155,7 +170,7 @@ void DBFlush(bool fShutdown)
     // Flush log data to the actual data file
     //  on all files that are not in use
     printf("DBFlush(%s)\n", fShutdown ? "true" : "false");
-    ////CRITICAL_BLOCK(cs_db)
+    //CRITICAL_BLOCK(cs_db)
     {
         dbenv.txn_checkpoint(0, 0, 0);
         map<string, int>::iterator mi = mapFileUseCount.begin();
@@ -186,13 +201,151 @@ void DBFlush(bool fShutdown)
 
 
 
+
+//
+// CTxDB
+//
+CTxDB::CTxDB(const char* pszMode, bool fTxn)
+	: CDB(!fClient ? "blkindex.dat" : NULL, pszMode, fTxn) { }
+
+
+bool CTxDB::ReadTxIndex(uint256 hash, CTxIndex& txindex)
+{
+    assert(!fClient);
+    txindex.SetNull();
+    return Read(make_pair(string("tx"), hash), txindex);
+}
+
+bool CTxDB::UpdateTxIndex(uint256 hash, const CTxIndex& txindex)
+{
+    assert(!fClient);
+    return Write(make_pair(string("tx"), hash), txindex);
+}
+
+bool CTxDB::AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos, int nHeight)
+{
+    assert(!fClient);
+
+    // Add to tx index
+    uint256 hash = tx.GetHash();
+    CTxIndex txindex(pos, tx.vout.size());
+    return Write(make_pair(string("tx"), hash), txindex);
+}
+
+bool CTxDB::EraseTxIndex(const CTransaction& tx)
+{
+    assert(!fClient);
+    uint256 hash = tx.GetHash();
+
+    return Erase(make_pair(string("tx"), hash));
+}
+
+bool CTxDB::ContainsTx(uint256 hash)
+{
+    assert(!fClient);
+    return Exists(make_pair(string("tx"), hash));
+}
+
+bool CTxDB::ReadOwnerTxes(uint160 hash160, int nMinHeight, vector<CTransaction>& vtx)
+{
+    assert(!fClient);
+    vtx.clear();
+
+    // Get cursor
+    Dbc* pcursor = GetCursor();
+    if (!pcursor)
+        return false;
+
+    unsigned int fFlags = DB_SET_RANGE;
+    for(;;)
+    {
+        // Read next record
+        CDataStream ssKey;
+        if (fFlags == DB_SET_RANGE)
+            ssKey << string("owner") << hash160 << CDiskTxPos(0, 0, 0);
+        CDataStream ssValue;
+        int ret = ReadAtCursor(pcursor, ssKey, ssValue, fFlags);
+        fFlags = DB_NEXT;
+        if (ret == DB_NOTFOUND)
+            break;
+        else if (ret != 0)
+            return false;
+
+        // Unserialize
+        string strType;
+        uint160 hashItem;
+        CDiskTxPos pos;
+        ssKey >> strType >> hashItem >> pos;
+        int nItemHeight;
+        ssValue >> nItemHeight;
+
+        // Read transaction
+        if (strType != "owner" || hashItem != hash160)
+            break;
+        if (nItemHeight >= nMinHeight)
+        {
+            vtx.resize(vtx.size()+1);
+            if (!vtx.back().ReadFromDisk(pos))
+                return false;
+        }
+    }
+    return true;
+}
+
+bool CTxDB::ReadDiskTx(uint256 hash, CTransaction& tx, CTxIndex& txindex)
+{
+    assert(!fClient);
+    tx.SetNull();
+    if (!ReadTxIndex(hash, txindex))
+        return false;
+    return (tx.ReadFromDisk(txindex.pos));
+}
+
+bool CTxDB::ReadDiskTx(uint256 hash, CTransaction& tx)
+{
+    CTxIndex txindex;
+    return ReadDiskTx(hash, tx, txindex);
+}
+
+bool CTxDB::ReadDiskTx(COutPoint outpoint, CTransaction& tx, CTxIndex& txindex)
+{
+    return ReadDiskTx(outpoint.hash, tx, txindex);
+}
+
+bool CTxDB::ReadDiskTx(COutPoint outpoint, CTransaction& tx)
+{
+    CTxIndex txindex;
+    return ReadDiskTx(outpoint.hash, tx, txindex);
+}
+
+bool CTxDB::WriteBlockIndex(const CDiskBlockIndex& blockindex)
+{
+    return Write(make_pair(string("blockindex"), blockindex.GetBlockHash()), blockindex);
+}
+
+bool CTxDB::EraseBlockIndex(uint256 hash)
+{
+    return Erase(make_pair(string("blockindex"), hash));
+}
+
+bool CTxDB::ReadHashBestChain(uint256& hashBestChain)
+{
+    return Read(string("hashBestChain"), hashBestChain);
+}
+
+bool CTxDB::WriteHashBestChain(uint256 hashBestChain)
+{
+    return Write(string("hashBestChain"), hashBestChain);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 //
 // CAddrDB
 //
 
 bool CAddrDB::WriteAddress(const CAddress& addr)
 {
-    return false; //Write(make_pair(string("addr"), addr.GetKey()), addr);
+    return Write(make_pair(string("addr"), addr.GetKey()), addr);
 }
 
 bool CAddrDB::LoadAddresses()
@@ -266,98 +419,6 @@ bool CAddrDB::LoadAddresses()
 bool LoadAddresses()
 {
     return CAddrDB("cr+").LoadAddresses();
-}
-
-
-
-
-//
-// CReviewDB
-//
-
-//bool CReviewDB::ReadReviews(uint256 hash, vector<CReview>& vReviews)
-//{
-//    vReviews.size(); // msvc workaround, just need to do anything with vReviews
-//    return Read(make_pair(string("reviews"), hash), vReviews);
-//}
-//
-//bool CReviewDB::WriteReviews(uint256 hash, const vector<CReview>& vReviews)
-//{
-//    return Write(make_pair(string("reviews"), hash), vReviews);
-//}
-
-
-
-
-
-
-
-//
-// CWalletDB
-//
-
-bool CWalletDB::LoadWallet(vector<unsigned char>& vchDefaultKeyRet)
-{
-    vchDefaultKeyRet.clear();
-
-    //// todo: shouldn't we catch exceptions and try to recover and continue?
-    //CRITICAL_BLOCK(cs_mapKeys)
-    //CRITICAL_BLOCK(cs_mapWallet)
-    {
-        // Get cursor
-        Dbc* pcursor = GetCursor();
-        if (!pcursor)
-            return false;
-
-        for(;;)
-        {
-            // Read next record
-            CDataStream ssKey;
-            CDataStream ssValue;
-            int ret = ReadAtCursor(pcursor, ssKey, ssValue);
-            if (ret == DB_NOTFOUND)
-                break;
-            else if (ret != 0)
-                return false;
-
-            // Unserialize
-            // Taking advantage of the fact that pair serialization
-            // is just the two items serialized one after the other
-            string strType;
-            ssKey >> strType;
-            if (strType == "name")
-            {
-                string strAddress;
-                ssKey >> strAddress;
-                ssValue >> mapAddressBook[strAddress];
-            }
-            else if (strType == "tx")
-            {
-               _tx_cb(ssKey, ssValue);
-            }
-            else if (strType == "key")
-            {
-                vector<unsigned char> vchPubKey;
-                ssKey >> vchPubKey;
-                CPrivKey vchPrivKey;
-                ssValue >> vchPrivKey;
-
-                _key_cb(vchPrivKey, vchPubKey);
-            }
-            else if (strType == "defaultkey")
-            {
-                ssValue >> vchDefaultKeyRet;
-            }
-            else if (strType == "setting")  /// or settings or option or options or config?
-            {
-                string strKey;
-                ssKey >> strKey;
-
-                _settings_cb(strKey, ssValue);
-            }
-        }
-    }
-    return true;
 }
 
 

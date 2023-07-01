@@ -18,137 +18,28 @@
 #include "key.h"
 #include "serialize.h"
 #include "net.h"
+class CTransaction;
 class CTxIndex;
+class CDiskBlockIndex;
 class CDiskTxPos;
-class CDataStream;
+class COutPoint;
+class CUser;
+class CReview;
+class CAddress;
+class CWalletTx;
+class CBlockIndex;
+//extern map<string, string> mapAddressBook;
+//extern bool fClient;
 
-extern map<string, string> mapAddressBook;
-extern bool fClient;
 
-
-extern DbEnv dbenv;
-extern void DBFlush(bool fShutdown);
-
-
-///////////////////////////////////////////////////////////////////////////////////////////
-class CDiskTxPos
-{
-public:
-    unsigned int nFile;
-    unsigned int nBlockPos;
-    unsigned int nTxPos;
-
-    CDiskTxPos()
-    {
-        SetNull();
-    }
-
-    CDiskTxPos(unsigned int nFileIn, unsigned int nBlockPosIn, unsigned int nTxPosIn)
-    {
-        nFile = nFileIn;
-        nBlockPos = nBlockPosIn;
-        nTxPos = nTxPosIn;
-    }
-
-    IMPLEMENT_SERIALIZE( READWRITE(FLATDATA(*this)); )
-    void SetNull() { nFile = -1; nBlockPos = 0; nTxPos = 0; }
-    bool IsNull() const { return (nFile == -1); }
-
-    friend bool operator==(const CDiskTxPos& a, const CDiskTxPos& b)
-    {
-        return (a.nFile     == b.nFile &&
-                a.nBlockPos == b.nBlockPos &&
-                a.nTxPos    == b.nTxPos);
-    }
-
-    friend bool operator!=(const CDiskTxPos& a, const CDiskTxPos& b)
-    {
-        return !(a == b);
-    }
-
-    string ToString() const
-    {
-        if (IsNull())
-            return strprintf("null");
-        else
-            return strprintf("(nFile=%d, nBlockPos=%d, nTxPos=%d)", nFile, nBlockPos, nTxPos);
-    }
-
-    void print() const
-    {
-        printf("%s", ToString().c_str());
-    }
-};
+//extern DbEnv dbenv;
+//extern void DBFlush(bool fShutdown);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
-//
-// A txdb record that contains the disk location of a transaction and the
-// locations of transactions that spend its outputs.  vSpent is really only
-// used as a flag, but having the location is very helpful for debugging.
-//
-class CTxIndex
-{
-public:
-    CDiskTxPos pos;
-    vector<CDiskTxPos> vSpent;
-
-    CTxIndex()
-    {
-        SetNull();
-    }
-
-    CTxIndex(const CDiskTxPos& posIn, unsigned int nOutputs)
-    {
-        pos = posIn;
-        vSpent.resize(nOutputs);
-    }
-
-    IMPLEMENT_SERIALIZE
-    (
-        if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
-        READWRITE(pos);
-        READWRITE(vSpent);
-    )
-
-    void SetNull()
-    {
-        pos.SetNull();
-        vSpent.clear();
-    }
-
-    bool IsNull()
-    {
-        return pos.IsNull();
-    }
-
-    friend bool operator==(const CTxIndex& a, const CTxIndex& b)
-    {
-        if (a.pos != b.pos || a.vSpent.size() != b.vSpent.size())
-            return false;
-        for (int i = 0; i < a.vSpent.size(); i++)
-            if (a.vSpent[i] != b.vSpent[i])
-                return false;
-        return true;
-    }
-
-    friend bool operator!=(const CTxIndex& a, const CTxIndex& b)
-    {
-        return !(a == b);
-    }
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////
-
 
 class CDB
 {
-protected:
+public:
     Db* pdb;
     string strFile;
     vector<DbTxn*> vTxn;
@@ -161,7 +52,7 @@ private:
     CDB(const CDB&);
     void operator=(const CDB&);
 
-protected:
+public:
     template<typename K, typename T>
     bool Read(const K& key, T& value)
     {
@@ -318,17 +209,7 @@ protected:
     }
 
 public:
-    bool TxnBegin()
-    {
-        if (!pdb)
-            return false;
-        DbTxn* ptxn = NULL;
-        int ret = dbenv.txn_begin(GetTxn(), &ptxn, 0);
-        if (!ptxn || ret != 0)
-            return false;
-        vTxn.push_back(ptxn);
-        return true;
-    }
+    bool TxnBegin();
 
     bool TxnCommit()
     {
@@ -362,8 +243,36 @@ public:
     {
         return Write(string("version"), nVersion);
     }
+//CWalletDB
+    template<typename WalletTx> bool WriteTx(uint256 hash, const WalletTx& wtx)
+    	{ return Write(make_pair(string("tx"), hash), wtx); }
+
 };
 
+
+class CTxDB : public CDB
+{
+public:
+    CTxDB(const char* pszMode="r+", bool fTxn=false);
+private:
+    CTxDB(const CTxDB&);
+    void operator=(const CTxDB&);
+public:
+    bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
+    bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);
+    bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos, int nHeight);
+    bool EraseTxIndex(const CTransaction& tx);
+    bool ContainsTx(uint256 hash);
+    bool ReadOwnerTxes(uint160 hash160, int nHeight, vector<CTransaction>& vtx);
+    bool ReadDiskTx(uint256 hash, CTransaction& tx, CTxIndex& txindex);
+    bool ReadDiskTx(uint256 hash, CTransaction& tx);
+    bool ReadDiskTx(COutPoint outpoint, CTransaction& tx, CTxIndex& txindex);
+    bool ReadDiskTx(COutPoint outpoint, CTransaction& tx);
+    bool WriteBlockIndex(const CDiskBlockIndex& blockindex);
+    bool EraseBlockIndex(uint256 hash);
+    bool ReadHashBestChain(uint256& hashBestChain);
+    bool WriteHashBestChain(uint256 hashBestChain);
+};
 
 //class CReviewDB : public CDB
 //{
@@ -373,15 +282,15 @@ public:
 //    CReviewDB(const CReviewDB&);
 //    void operator=(const CReviewDB&);
 //public:
-//    bool ReadUser(uint256 hash, CUser& user)
-//    {
-//        return Read(make_pair(string("user"), hash), user);
-//    }
+//    bool ReadUser(uint256 hash, CUser& user);
+////    {
+////        return Read(make_pair(string("user"), hash), user);
+////    }
 //
-//    bool WriteUser(uint256 hash, const CUser& user)
-//    {
-//        return Write(make_pair(string("user"), hash), user);
-//    }
+//    bool WriteUser(uint256 hash, const CUser& user);
+////    {
+////        return Write(make_pair(string("user"), hash), user);
+////    }
 //
 //    bool ReadReviews(uint256 hash, vector<CReview>& vReviews);
 //    bool WriteReviews(uint256 hash, const vector<CReview>& vReviews);
@@ -425,11 +334,6 @@ bool LoadAddresses();
 class CWalletDB : public CDB
 {
 public:
-	std::function<int(CDataStream&, CDataStream &)> _tx_cb;
-	std::function<int(CPrivKey const& vchPrivKey, vector<unsigned char> const& vchPubKey)> _key_cb;
-	std::function<int(string const& k, CDataStream & v)> _settings_cb;
-
-public:
     CWalletDB(const char* pszMode="r+", bool fTxn=false) : CDB("wallet.dat", pszMode, fTxn) { }
 private:
     CWalletDB(const CWalletDB&);
@@ -441,26 +345,15 @@ public:
         return Read(make_pair(string("name"), strAddress), strName);
     }
 
-    bool WriteName(const string& strAddress, const string& strName)
-    {
-        mapAddressBook[strAddress] = strName;
-        return Write(make_pair(string("name"), strAddress), strName);
-    }
-
-    bool EraseName(const string& strAddress)
-    {
-        mapAddressBook.erase(strAddress);
-        return Erase(make_pair(string("name"), strAddress));
-    }
-//fixme
-//    bool ReadTx(uint256 hash, CWalletTx& wtx)
+    bool EraseName(const string& strAddress);
 //    {
-//        return Read(make_pair(string("tx"), hash), wtx);
+//        mapAddressBook.erase(strAddress);
+//        return Erase(make_pair(string("name"), strAddress));
 //    }
 
-//    bool WriteTx(uint256 hash, const CWalletTx& wtx)
+    bool ReadTx(uint256 hash, CWalletTx& wtx);
 //    {
-//        return Write(make_pair(string("tx"), hash), wtx);
+//        return Read(make_pair(string("tx"), hash), wtx);
 //    }
 
     bool EraseTx(uint256 hash)
@@ -502,14 +395,6 @@ public:
         return Write(make_pair(string("setting"), strKey), value);
     }
 
-    bool LoadWallet(vector<unsigned char>& vchDefaultKeyRet);
 };
-
-bool LoadWallet();
-
-inline bool SetAddressBookName(const string& strAddress, const string& strName)
-{
-    return CWalletDB().WriteName(strAddress, strName);
-}
 
 #endif //#ifndef BTC_DB_H

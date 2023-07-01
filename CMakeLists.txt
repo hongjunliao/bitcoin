@@ -21,7 +21,7 @@ add_subdirectory(deps/libhp)
 # bitcoin-v0.1.5 
 project(bitcoin-v0.1.5)
 
-file(GLOB SRCS src/*.cpp src/*.c deps/sds/*)
+file(GLOB SRCS src/*.cpp src/*.c deps/sds/* deps/cryptopp/*)
 add_executable(bitcoin-v0.1.5 ${SRCS})
 
 target_include_directories(bitcoin-v0.1.5 PRIVATE 
