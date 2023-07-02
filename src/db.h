@@ -322,7 +322,7 @@ private:
     void operator=(const CAddrDB&);
 public:
     bool WriteAddress(const CAddress& addr);
-    bool LoadAddresses();
+//    bool LoadAddresses();
 };
 
 bool LoadAddresses();

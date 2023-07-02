@@ -93,7 +93,7 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
             try{
 				ret = dbenv.open(strAppDir.c_str(),
 	                             DB_CREATE     |
-								 DB_INIT_LOCK  |
+//								 DB_INIT_LOCK  |
 								 DB_INIT_LOG   |
 								 DB_INIT_MPOOL |
 								 DB_INIT_TXN   |
@@ -130,7 +130,7 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
 		std::cerr << "Database error: " << e.what() << std::endl;
 	} catch (std::exception &e) {
 		std::cerr << "Error: " << e.what() << std::endl;
-	} catch(...){}
+	} catch(...){ std::cerr << "Error: " << __FUNCTION__ << std::endl; }
 
     if (ret > 0)
     {
@@ -347,78 +347,4 @@ bool CAddrDB::WriteAddress(const CAddress& addr)
 {
     return Write(make_pair(string("addr"), addr.GetKey()), addr);
 }
-
-bool CAddrDB::LoadAddresses()
-{
-	return false;
-//    //CRITICAL_BLOCK(cs_mapIRCAddresses)
-//    //CRITICAL_BLOCK(cs_mapAddresses)
-//    {
-//        // Load user provided addresses
-//        CAutoFile filein = fopen("addr.txt", "rt");
-//        if (filein)
-//        {
-//            try
-//            {
-//                char psz[1000];
-//                while (fgets(psz, sizeof(psz), filein))
-//                {
-//                    CAddress addr(psz, NODE_NETWORK);
-//                    if (addr.ip != 0)
-//                    {
-//                        AddAddress(*this, addr);
-//                        mapIRCAddresses.insert(make_pair(addr.GetKey(), addr));
-//                    }
-//                }
-//            }
-//            catch (...) { }
-//        }
-//
-//        // Get cursor
-//        Dbc* pcursor = GetCursor();
-//        if (!pcursor)
-//            return false;
-//
-//        for(;;)
-//        {
-//            // Read next record
-//            CDataStream ssKey;
-//            CDataStream ssValue;
-//            int ret = ReadAtCursor(pcursor, ssKey, ssValue);
-//            if (ret == DB_NOTFOUND)
-//                break;
-//            else if (ret != 0)
-//                return false;
-//
-//            // Unserialize
-//            string strType;
-//            ssKey >> strType;
-//            if (strType == "addr")
-//            {
-//                CAddress addr;
-//                ssValue >> addr;
-//                mapAddresses.insert(make_pair(addr.GetKey(), addr));
-//            }
-//        }
-//
-//        //// debug print
-//        printf("mapAddresses:\n");
-//        foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
-//            item.second.print();
-//        printf("-----\n");
-//
-//        // Fix for possible bug that manifests in mapAddresses.count in irc.cpp,
-//        // just need to call count here and it doesn't happen there.  The bug was the
-//        // pack pragma in irc.cpp and has been fixed, but I'm not in a hurry to delete this.
-//        mapAddresses.count(vector<unsigned char>(18));
-//    }
-//
-//    return true;
-}
-
-bool LoadAddresses()
-{
-    return CAddrDB("cr+").LoadAddresses();
-}
-
 

@@ -32,6 +32,10 @@ int test_btc_main(int argc, char ** argv)
 {
 	hp_log(stdout, "%s...\n", __FUNCTION__);
 	{
+	    string str = strprintf("%I64d.%0I64d.%0xI64d.%08I64d.%8I64d", 22222, 22222, 22222, 22222, 22222);
+	    hp_log(stdout, "%s: str='%s'\n", __FUNCTION__, str.c_str());
+	}
+	{
 		CBigNum a = 1, b = 2, c = a + b, d, e;
 		d.setint64(4);
 		assert(c==3);

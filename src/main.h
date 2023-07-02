@@ -261,7 +261,7 @@ public:
 class CTxOut
 {
 public:
-    int64 nValue;
+	int64 nValue;
     CScript scriptPubKey;
 
 public:
@@ -321,12 +321,7 @@ public:
         return !(a == b);
     }
 
-    string ToString() const
-    {
-        if (scriptPubKey.size() < 6)
-            return "CTxOut(error)";
-        return strprintf("CTxOut(nValue=%I64d.%08I64d, scriptPubKey=%s)", nValue / COIN, nValue % COIN, scriptPubKey.ToString().substr(0,24).c_str());
-    }
+    string ToString() const;
 
     void print() const
     {

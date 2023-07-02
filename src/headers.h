@@ -53,7 +53,7 @@ typedef unsigned long long  uint64;
 /////////////////////////////////////////////////////////////////
 
 #define MAX_SIZE  0x02000000
-#define COIN 100000000
+static const int64 COIN = 100000000;
 #define CENT  1000000
 #define COINBASE_MATURITY  100
 #define BEGIN(a)            ((char*)&(a))
