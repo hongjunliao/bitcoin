@@ -380,4 +380,67 @@ public:
     }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+#include "hp/hp_io_t.h"
+#include "hp/sdsinc.h"
+#ifdef __cplusplus
+extern "C" {
+#include "redis/src/dict.h"	  /* dict */
+#include "redis/src/adlist.h"	  /* list */
+#endif
+#ifdef __cplusplus
+}
+#endif
+
+typedef CMessageHeader btc_node_msghdr;
+/////////////////////////////////////////////////////////////////////////////////////////
+
+typedef struct btc_node_io btc_node_io;
+typedef struct btc_node_io_ctx btc_node_io_ctx;
+
+/* for BTC client */
+struct btc_node_io {
+	hp_io_t base;
+	sds sid;
+	time_t rping;		/* redis ping-pong */
+	dict * qos;			/* topic=>QOS */
+	list * outlist;     /* pendding out messages */
+	listNode * l_msg; 	/* last message sent, from outlist */
+	time_t l_time;      /* last send time */
+	int l_mid;          /* BTC msgid */
+	btc_node_io_ctx * ioctx;
+};
+
+struct btc_node_io_ctx {
+	hp_io_ctx base;
+	int rping_interval; /* redis ping-pong interval */
+	uint16_t mqid;		/* mqtt message_id */
+	int n_nodes;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+int btc_node_io_init(btc_node_io * io, btc_node_io_ctx * ioctx);
+int btc_node_io_loop(btc_node_io * c);
+void btc_node_io_uninit(btc_node_io * io);
+
+int btc_node_ctx_init(btc_node_io_ctx * ioctx
+		, hp_sock_t fd, int tcp_keepalive
+		, int ping_interval);
+int btc_node_ctx_run(btc_node_io_ctx * ioctx);
+int btc_node_io_append(btc_node_io * client, char const * topic
+		, char const * mid, sds message, int flags);
+
+int btc_node_ctx_uninit(btc_node_io_ctx * ioctx);
+
+int btc_node_send_header(btc_node_io * client, uint8_t cmd,
+        uint8_t flags, size_t len);
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+
 #endif //#define BTC_NET_H

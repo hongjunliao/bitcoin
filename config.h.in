@@ -1,1 +1,25 @@
-//#cmakedefine WITH_LIBWX
+/*!
+ * @author hongjun.liao <docici@126.com>, @date 2023/6/29
+ *
+ * rebuild the old Bitcoin code(Bitcoin v0.1.5) on a modern Linux/Ubuntu distribution
+ * */
+
+// Copyright (c) 2009 Satoshi Nakamoto
+// Distributed under the MIT/X11 software license, see the accompanying
+// file license.txt or http://www.opensource.org/licenses/mit-license.php.
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifndef BTC_CONFIG_H
+#define BTC_CONFIG_H
+
+/* define to enable GNU extension */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#ifndef HAVE_CONFIG_H
+#define HAVE_CONFIG_H
+#endif
+
+#endif /* BTC_CONFIG_H */

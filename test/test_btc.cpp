@@ -13,6 +13,8 @@
 #ifndef BTC_TEST_H
 #define BTC_TEST_H
 
+#include "config.h"
+
 #include "hp/hp_log.h"
 #include <cassert>
 #include <stdexcept>
@@ -25,12 +27,25 @@
 #include "../src/db.h"
 #include "../src/base58.h"
 #include "../src/script.h"
-
+#include "hp/libhp.h"
+#include "hp/hp_redis.h"
+#include "hp/hp_config.h"
+#include "sds/sds.h"
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 int test_btc_main(int argc, char ** argv)
 {
+	int rc;
 	hp_log(stdout, "%s...\n", __FUNCTION__);
+	{
+		int rc = libhp_all_tests_main(argc, argv);
+	}
+	//base58.h
+	{
+		char buf[] = "1iIl0O";
+		string s1 = EncodeBase58((unsigned char *)buf, (unsigned char *)(buf + sizeof(buf)));
+		hp_log(stdout, "%s:s/EncodeBase58='%s'/'%s'\n", __FUNCTION__,buf, s1.c_str());
+	}
 	{
 	    string str = strprintf("%I64d.%0I64d.%0xI64d.%08I64d.%8I64d", 22222, 22222, 22222, 22222, 22222);
 	    hp_log(stdout, "%s: str='%s'\n", __FUNCTION__, str.c_str());

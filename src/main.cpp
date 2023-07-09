@@ -10,12 +10,14 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 //
+#include "config.h"
 #include "headers.h"
 #include "main.h"
 
 #include <set>
 #include <db.h>
 #include <ctime>
+#include <memory>
 #include <utility>
 #include "serialize.h"
 #include "uint256.h"
@@ -27,6 +29,7 @@
 #include "hp/string_util.h"
 #include "cryptopp/sha.h"
 #include "hp/hp_log.h"
+#include "hp/hp_assert.h"
 using std::multimap;
 using std::make_pair;
 using std::runtime_error;
@@ -116,6 +119,8 @@ bool IsMine(const CScript& scriptPubKey);
 bool SignSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL, CScript scriptPrereq=CScript());
 bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, int nHashType=0);
 string DateTimeStr(int64 nTime){ sds s = hp_timestr(nTime, 0); string str(s); sdsfree(s); return str; }
+/////////////////////////////////////////////////////////////////////////////////////////////
+bool fShutdown = false;
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 CBlockIndex* InsertBlockIndex(uint256 hash)
@@ -2442,6 +2447,7 @@ int FormatHashBlocks(void* pbuffer, unsigned int len)
 }
 
 using CryptoPP::ByteReverse;
+using std::auto_ptr;
 static int detectlittleendian = 1;
 
 void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
@@ -2489,163 +2495,163 @@ bool BitcoinMiner()
 ////            CheckForShutdown(3);
 //        }
 //
-//        unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
-//        CBlockIndex* pindexPrev = pindexBest;
-//        unsigned int nBits = GetNextWorkRequired(pindexPrev);
+        unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
+        CBlockIndex* pindexPrev = pindexBest;
+        unsigned int nBits = GetNextWorkRequired(pindexPrev);
 //
 //
 //        //
-//        // Create coinbase tx
-//        //
-//        CTransaction txNew;
-//        txNew.vin.resize(1);
-//        txNew.vin[0].prevout.SetNull();
-//        txNew.vin[0].scriptSig << nBits << ++bnExtraNonce;
-//        txNew.vout.resize(1);
-//        txNew.vout[0].scriptPubKey << key.GetPubKey() << OP_CHECKSIG;
-//
-//
-//        //
-//        // Create new block
-//        //
-//        auto_ptr<CBlock> pblock(new CBlock());
-//        if (!pblock.get())
-//            return false;
-//
-//        // Add our coinbase tx as first transaction
-//        pblock->vtx.push_back(txNew);
-//
-//        // Collect the latest transactions into the block
-//        int64 nFees = 0;
-//        //CRITICAL_BLOCK(cs_main)
-//        //CRITICAL_BLOCK(cs_mapTransactions)
-//        {
-//            CTxDB txdb("r");
-//            map<uint256, CTxIndex> mapTestPool;
-//            vector<char> vfAlreadyAdded(mapTransactions.size());
-//            bool fFoundSomething = true;
-//            unsigned int nBlockSize = 0;
-//            while (fFoundSomething && nBlockSize < MAX_SIZE/2)
-//            {
-//                fFoundSomething = false;
-//                unsigned int n = 0;
-//                for (map<uint256, CTransaction>::iterator mi = mapTransactions.begin(); mi != mapTransactions.end(); ++mi, ++n)
-//                {
-//                    if (vfAlreadyAdded[n])
-//                        continue;
-//                    CTransaction& tx = (*mi).second;
-//                    if (tx.IsCoinBase() || !tx.IsFinal())
-//                        continue;
-//
-//                    // Transaction fee requirements, mainly only needed for flood control
-//                    // Under 10K (about 80 inputs) is free for first 100 transactions
-//                    // Base rate is 0.01 per KB
-//                    int64 nMinFee = tx.GetMinFee(pblock->vtx.size() < 100);
-//
-//                    map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
-//                    if (!tx.ConnectInputs(txdb, mapTestPoolTmp, CDiskTxPos(1,1,1), 0, nFees, false, true, nMinFee))
-//                        continue;
-//                    swap(mapTestPool, mapTestPoolTmp);
-//
-//                    pblock->vtx.push_back(tx);
-//                    nBlockSize += ::GetSerializeSize(tx, SER_NETWORK);
-//                    vfAlreadyAdded[n] = true;
-//                    fFoundSomething = true;
-//                }
-//            }
-//        }
-//        pblock->nBits = nBits;
-//        pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
-//        hp_log(stdout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
-//
-//
-//        //
-//        // Prebuild hash buffer
-//        //
-//        struct unnamed1
-//        {
-//            struct unnamed2
-//            {
-//                int nVersion;
-//                uint256 hashPrevBlock;
-//                uint256 hashMerkleRoot;
-//                unsigned int nTime;
-//                unsigned int nBits;
-//                unsigned int nNonce;
-//            }
-//            block;
-//            unsigned char pchPadding0[64];
-//            uint256 hash1;
-//            unsigned char pchPadding1[64];
-//        }
-//        tmp;
-//
-//        tmp.block.nVersion       = pblock->nVersion;
-//        tmp.block.hashPrevBlock  = pblock->hashPrevBlock  = (pindexPrev ? pindexPrev->GetBlockHash() : 0);
-//        tmp.block.hashMerkleRoot = pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-//        tmp.block.nTime          = pblock->nTime          = std::max((pindexPrev ? pindexPrev->GetMedianTimePast()+1 : 0), GetAdjustedTime());
-//        tmp.block.nBits          = pblock->nBits          = nBits;
-//        tmp.block.nNonce         = pblock->nNonce         = 1;
-//
-//        unsigned int nBlocks0 = FormatHashBlocks(&tmp.block, sizeof(tmp.block));
-//        unsigned int nBlocks1 = FormatHashBlocks(&tmp.hash1, sizeof(tmp.hash1));
-//
-//
-//        //
-//        // Search
-//        //
-//        unsigned int nStart = GetTime();
-//        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
-//        uint256 hash;
-//        for(;;)
-//        {
-//            BlockSHA256(&tmp.block, nBlocks0, &tmp.hash1);
-//            BlockSHA256(&tmp.hash1, nBlocks1, &hash);
-//
-//
-//            if (hash <= hashTarget)
-//            {
-//                pblock->nNonce = tmp.block.nNonce;
-//                assert(hash == pblock->GetHash());
-//
-//                    //// debug print
-//                    hp_log(stdout, "BitcoinMiner:\n");
-//                    hp_log(stdout, "proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
-//                    pblock->print();
-//
+        // Create coinbase tx
+        //
+        CTransaction txNew;
+        txNew.vin.resize(1);
+        txNew.vin[0].prevout.SetNull();
+        txNew.vin[0].scriptSig << nBits << ++bnExtraNonce;
+        txNew.vout.resize(1);
+        txNew.vout[0].scriptPubKey << key.GetPubKey() << OP_CHECKSIG;
+
+
+        //
+        // Create new block
+        //
+        auto_ptr<CBlock> pblock(new CBlock());
+        if (!pblock.get())
+            return false;
+
+        // Add our coinbase tx as first transaction
+        pblock->vtx.push_back(txNew);
+
+        // Collect the latest transactions into the block
+        int64 nFees = 0;
+        //CRITICAL_BLOCK(cs_main)
+        //CRITICAL_BLOCK(cs_mapTransactions)
+        {
+            CTxDB txdb("r");
+            map<uint256, CTxIndex> mapTestPool;
+            vector<char> vfAlreadyAdded(mapTransactions.size());
+            bool fFoundSomething = true;
+            unsigned int nBlockSize = 0;
+            while (fFoundSomething && nBlockSize < MAX_SIZE/2)
+            {
+                fFoundSomething = false;
+                unsigned int n = 0;
+                for (map<uint256, CTransaction>::iterator mi = mapTransactions.begin(); mi != mapTransactions.end(); ++mi, ++n)
+                {
+                    if (vfAlreadyAdded[n])
+                        continue;
+                    CTransaction& tx = (*mi).second;
+                    if (tx.IsCoinBase() || !tx.IsFinal())
+                        continue;
+
+                    // Transaction fee requirements, mainly only needed for flood control
+                    // Under 10K (about 80 inputs) is free for first 100 transactions
+                    // Base rate is 0.01 per KB
+                    int64 nMinFee = tx.GetMinFee(pblock->vtx.size() < 100);
+
+                    map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
+                    if (!tx.ConnectInputs(txdb, mapTestPoolTmp, CDiskTxPos(1,1,1), 0, nFees, false, true, nMinFee))
+                        continue;
+                    swap(mapTestPool, mapTestPoolTmp);
+
+                    pblock->vtx.push_back(tx);
+                    nBlockSize += ::GetSerializeSize(tx, SER_NETWORK);
+                    vfAlreadyAdded[n] = true;
+                    fFoundSomething = true;
+                }
+            }
+        }
+        pblock->nBits = nBits;
+        pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
+        hp_log(stdout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
+
+
+        //
+        // Prebuild hash buffer
+        //
+        struct unnamed1
+        {
+            struct unnamed2
+            {
+                int nVersion;
+                uint256 hashPrevBlock;
+                uint256 hashMerkleRoot;
+                unsigned int nTime;
+                unsigned int nBits;
+                unsigned int nNonce;
+            }
+            block;
+            unsigned char pchPadding0[64];
+            uint256 hash1;
+            unsigned char pchPadding1[64];
+        }
+        tmp;
+
+        tmp.block.nVersion       = pblock->nVersion;
+        tmp.block.hashPrevBlock  = pblock->hashPrevBlock  = (pindexPrev ? pindexPrev->GetBlockHash() : 0);
+        tmp.block.hashMerkleRoot = pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        tmp.block.nTime          = pblock->nTime          = std::max((pindexPrev ? pindexPrev->GetMedianTimePast()+1 : 0), GetAdjustedTime());
+        tmp.block.nBits          = pblock->nBits          = nBits;
+        tmp.block.nNonce         = pblock->nNonce         = 1;
+
+        unsigned int nBlocks0 = FormatHashBlocks(&tmp.block, sizeof(tmp.block));
+        unsigned int nBlocks1 = FormatHashBlocks(&tmp.hash1, sizeof(tmp.hash1));
+
+
+        //
+        // Search
+        //
+        unsigned int nStart = GetTime();
+        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+        uint256 hash;
+        for(;;)
+        {
+            BlockSHA256(&tmp.block, nBlocks0, &tmp.hash1);
+            BlockSHA256(&tmp.hash1, nBlocks1, &hash);
+
+
+            if (hash <= hashTarget)
+            {
+                pblock->nNonce = tmp.block.nNonce;
+                assert(hash == pblock->GetHash());
+
+                    //// debug print
+                    hp_log(stdout, "BitcoinMiner:\n");
+                    hp_log(stdout, "proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
+                    pblock->print();
+
 //                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-//                //CRITICAL_BLOCK(cs_main)
-//                {
-//                    // Save key
-//                    if (!AddKey(key))
-//                        return false;
-//                    key.MakeNewKey();
-//
-//                    // Process this block the same as if we had received it from another node
+                //CRITICAL_BLOCK(cs_main)
+                {
+                    // Save key
+                    if (!AddKey(key))
+                        return false;
+                    key.MakeNewKey();
+
+                    // Process this block the same as if we had received it from another node
 //                    if (!ProcessBlock(NULL, pblock.release()))
 //                        hp_log(stdout, "ERROR in BitcoinMiner, ProcessBlock, block not accepted\n");
-//                }
+                }
 //                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
+
+                sleep_micro(500);
+                break;
+            }
 //
-//                sleep_micro(500);
-//                break;
-//            }
-//
-//            // Update nTime every few seconds
-//            if ((++tmp.block.nNonce & 0x3ffff) == 0)
-//            {
+            // Update nTime every few seconds
+            if ((++tmp.block.nNonce & 0x3ffff) == 0)
+            {
 //                CheckForShutdown(3);
-//                if (tmp.block.nNonce == 0)
-//                    break;
-//                if (pindexPrev != pindexBest)
-//                    break;
-//                if (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60)
-//                    break;
-//                if (!fGenerateBitcoins)
-//                    break;
-//                tmp.block.nTime = pblock->nTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
-//            }
-//        }
+                if (tmp.block.nNonce == 0)
+                    break;
+                if (pindexPrev != pindexBest)
+                    break;
+                if (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                    break;
+                if (!fGenerateBitcoins)
+                    break;
+                tmp.block.nTime = pblock->nTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
+            }
+        }
     }
 //
     return true;
@@ -3313,11 +3319,21 @@ bool LoadAddresses()
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "../test/test_btc.cpp"
+#include "hp/hp_net.h"
 int test_btc_main(int argc, char ** argv);
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char ** argv)
 {
-	int rc = test_btc_main(argc, argv);
+	int rc = 0;
+	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
+#ifndef NDEBUG
+	rc = test_btc_main(argc, argv);
+#endif //#ifndef NDEBUG
+	/* rmqtt server */
+	static btc_node_io_ctx s_ioctxobj = { 0 }, * s_ioctx = &s_ioctxobj;
+	/* listen fd */
+	static hp_sock_t s_listenfd = 0;
 
     //// debug print
     hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
@@ -3400,6 +3416,20 @@ int main(int argc, char ** argv)
             fGenerateBitcoins = atoi(mapArgs["/gen"].c_str());
     }
 
+	s_listenfd = hp_net_listen(8333);
+	if(!hp_sock_is_valid(s_listenfd))
+		return -1;
+	if (s_listenfd <= 0) { return -2; }
+	rc = btc_node_ctx_init(s_ioctx, s_listenfd, 0, 0);
+	if(rc != 0) { return -2; }
+	/* run */
+	hp_log(stdout, "%s: listening on port=%d, waiting for connection ...\n", __FUNCTION__
+			, 8333);
+	for(;!fShutdown;){
+		btc_node_ctx_run(s_ioctx);
+	}
+
+	btc_node_ctx_uninit(s_ioctx);
     //
     // Create the main frame window
     //

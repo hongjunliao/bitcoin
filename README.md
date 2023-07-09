@@ -13,6 +13,7 @@
 
 1. 添加依赖,参见 [deps/README.md](/deps/README.md)
 2. 使用cmake构建：`mkdir build && cd build && cmake .. && make`
+3. Debug构建: `make .. -DCMAKE_BUILD_TYPE=Debug`
 
 #### 进度
 
