@@ -28,64 +28,13 @@ extern "C"{
 #include "redis/src/dict.h"	  	/* dict */
 #include "redis/src/adlist.h"	/* list */
 #include "sds/sds.h"			/* sds */
-
+#include "hp/hp_http.h"
+#include "hp/hp_net.h"
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 extern bool BitcoinMiner();
 
-/////////////////////////////////////////////////////////////////////////////////////////
-
-static hp_io_t *  btc_node_on_new(hp_io_ctx * ioctx, hp_sock_t confd)
-{
-	btc_node_io_ctx * c = (btc_node_io_ctx *)ioctx;
-	if(!c) { return 0; }
-	btc_node_io * node = (btc_node_io *)calloc(1, sizeof(btc_node_io));
-	int rc = btc_node_io_init(node, c);
-	assert(rc == 0);
-
-	if (hp_log_level > 2) {
-		char cliaddstr[64] = "";
-		hp_log(stdout, "%s: new connect from '%s', fd=%d, total=%d\n"
-			, __FUNCTION__, hp_get_ipport_cstr(confd, cliaddstr), confd, ++c->n_nodes);
-	}
-	return (hp_io_t *)node;
-}
-
-static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len, int flags
-	, hp_iohdr_t ** hdrp, char ** bodyp)
-{
-	return 0; //btc_node_parse(buf, len, flags, hdrp, bodyp);
-}
-
-static int btc_node_on_dispatch(hp_io_t * io, hp_iohdr_t * imhdr, char * body)
-{
-	return 0; //btc_node_dispatch((btc_node_io_t *)io, imhdr, body);
-}
-
-static int btc_node_on_loop(hp_io_t * io)
-{
-	return btc_node_io_loop((btc_node_io *)io);
-}
-
-static void btc_node_on_delete(hp_io_t * io)
-{
-	btc_node_io * node = (btc_node_io *)io;
-	if(!(node && node->ioctx)) { return; }
-	--node->ioctx->n_nodes;
-	btc_node_io_uninit(node);
-	free(node);
-
-}
-
-/* callbacks for btc_node clients */
-static hp_iohdl s_btc_nodehdl = {
-	.on_new = btc_node_on_new,
-	.on_parse = btc_node_on_parse,
-	.on_dispatch = btc_node_on_dispatch,
-	.on_loop = btc_node_on_loop,
-	.on_delete = btc_node_on_delete,
-};
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /*====================== Hash table type implementation  ==================== */
@@ -128,7 +77,7 @@ static dictType qosTableDictType = {
  * BTC protocol
  * */
 
-static int btc_node_io_send(btc_node_io * io, btc_node_msghdr * rmsg, int flags)
+static int btc_node_io_send(btc_node * io, btc_node_msghdr * rmsg, int flags)
 {
 	int rc;
 //	if(!(io && rmsg))
@@ -213,12 +162,12 @@ static int sdslist_match(void *ptr, void *key)
 //	return strncmp(msg->mid, (char *)key, sdslen(msg->mid)) == 0;
 }
 
-int btc_node_io_init(btc_node_io * io, btc_node_io_ctx * ioctx)
+int btc_node_init(btc_node * io, btc_node_ctx * ioctx)
 {
 	if(!(io && ioctx))
 		return -1;
 
-	memset(io, 0, sizeof(btc_node_io));
+	memset(io, 0, sizeof(btc_node));
 
 //	io->sid = sdsnew("");
 	io->ioctx = ioctx;
@@ -232,7 +181,7 @@ int btc_node_io_init(btc_node_io * io, btc_node_io_ctx * ioctx)
 	return 0;
 }
 
-int btc_node_io_append(btc_node_io * io, char const * topic, char const * mid, sds message, int flags)
+int btc_node_append(btc_node * io, char const * topic, char const * mid, sds message, int flags)
 {
 	if(!(io && message))
 		return -1;
@@ -242,31 +191,31 @@ int btc_node_io_append(btc_node_io * io, char const * topic, char const * mid, s
 //	jmsg->topic = sdsnew(topic);
 //	jmsg->mid = sdsnew(mid);
 
-	list * li = listAddNodeTail(((btc_node_io *)io)->outlist, jmsg);
+	list * li = listAddNodeTail(((btc_node *)io)->outlist, jmsg);
 	assert(li);
 
 	return 0;
 }
 
-void btc_node_io_uninit(btc_node_io * io)
+void btc_node_uninit(btc_node * io)
 {
 	if(!io)
 		return ;
 
 	int rc;
-	btc_node_io_ctx * ioctx = io->ioctx;
+	btc_node_ctx * ioctx = io->ioctx;
 
 	dictRelease(io->qos);
 	listRelease(io->outlist);
 //	sdsfree(io->sid);
 }
 
-int btc_node_io_loop(btc_node_io * io)
+int btc_node_loop(btc_node * io)
 {
 	assert(io && io->ioctx);
 
 	int rc = 0;
-	btc_node_io_ctx * ioctx = io->ioctx;
+	btc_node_ctx * ioctx = io->ioctx;
 	btc_node_msghdr * rmsg = 0;
 
 	BitcoinMiner();
@@ -341,35 +290,99 @@ int btc_node_io_loop(btc_node_io * io)
 	return rc;
 }
 
-int btc_node_ctx_init(btc_node_io_ctx * ioctx
+/////////////////////////////////////////////////////////////////////////////////////////
+
+static hp_io_t *  btc_node_on_new(hp_io_t * cio, hp_sock_t fd)
+{
+	assert(cio && cio->user);
+
+	btc_node_ctx * c = (btc_node_ctx *)cio->user;
+	if(!c) { return 0; }
+	btc_node * node = (btc_node *)calloc(1, sizeof(btc_node));
+	int rc = btc_node_init(node, c);
+	assert(rc == 0);
+
+	if(hp_log_level > 0){
+		char buf[64] = "";
+		hp_log(stdout, "%s: new HTTP connection from '%s', IO total=%d\n", __FUNCTION__, hp_get_ipport_cstr(fd, buf),
+				hp_io_count(cio->ioctx));
+	}
+	return (hp_io_t *)node;
+}
+
+static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
+	, hp_iohdr_t ** hdrp, char ** bodyp)
+{
+	return 0; //btc_node_parse(buf, len, flags, hdrp, bodyp);
+}
+
+static int btc_node_on_dispatch(hp_io_t * io, hp_iohdr_t * imhdr, char * body)
+{
+	return 0; //btc_node_dispatch((btc_node_io_t *)io, imhdr, body);
+}
+
+static int btc_node_on_loop(hp_io_t * io)
+{
+	return btc_node_loop((btc_node *)io);
+}
+
+static void btc_node_on_delete(hp_io_t * io)
+{
+	btc_node * node = (btc_node *)io;
+	if(!(node && node->ioctx)) { return; }
+
+	if(hp_log_level > 0){
+		char buf[64] = "";
+		hp_log(stdout, "%s: delete HTTP connection '%s', IO total=%d\n", __FUNCTION__
+				, hp_get_ipport_cstr(hp_io_fd(io), buf), hp_io_count(io->ioctx));
+	}
+
+	btc_node_uninit(node);
+	free(node);
+
+}
+
+/* callbacks for btc_node clients */
+static hp_iohdl s_btc_nodehdl = {
+	.on_new = btc_node_on_new,
+	.on_parse = btc_node_on_parse,
+	.on_dispatch = btc_node_on_dispatch,
+	.on_delete = btc_node_on_delete,
+	.on_loop = btc_node_on_loop
+};
+
+int btc_node_ctx_init(btc_node_ctx * nodectx
+	, hp_io_ctx * ioctx
 	, hp_sock_t fd, int tcp_keepalive
 	, int ping_interval)
 {
 	int rc;
-	if (!(ioctx)) { return -1; }
+	if (!(nodectx && ioctx)) { return -1; }
 
-	hp_ioopt ioopt = { fd, 0, s_btc_nodehdl
-#ifdef _MSC_VER
-		, 200  /* poll timeout */
-		, 0    /* hwnd */
-#endif /* _MSC_VER */
-	};
-	rc = hp_io_init((hp_io_ctx *)ioctx, &ioopt);
-	if (rc != 0) { return -3; }
+	nodectx->ioctx = ioctx;
+	nodectx->rping_interval = ping_interval;
 
-	ioctx->rping_interval = ping_interval;
+	rc = hp_io_add(nodectx->ioctx, &nodectx->listenio, fd, s_btc_nodehdl);
+	if (rc != 0) { return -4; }
+
+	nodectx->listenio.user = nodectx;
 
 	return rc;
 }
 
-int btc_node_ctx_run(btc_node_io_ctx * ioctx)
+void btc_node_ctx_uninit(btc_node_ctx * bctx)
 {
-	return hp_io_run((hp_io_ctx *)ioctx, 200, 0);
 }
 
-int btc_node_ctx_uninit(btc_node_io_ctx * ioctx)
+/////////////////////////////////////////////////////////////////////////////////////////
+int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp)
 {
-	return hp_io_uninit((hp_io_ctx *)ioctx);
-}
+	assert(http && req && resp);
 
+	resp->status_code = 200;
+	resp->flags = 0;
+	resp->html = req->url;
+
+	return 0;
+}
 /////////////////////////////////////////////////////////////////////////////////////////

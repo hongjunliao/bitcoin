@@ -1,4 +1,4 @@
-		/*!
+/*!
  * @author hongjun.liao <docici@126.com>, @date 2023/6/29
  *
  * rebuild the old Bitcoin code(Bitcoin v0.1.5) on a modern Linux/Ubuntu distribution
@@ -2485,7 +2485,7 @@ bool BitcoinMiner()
     CKey key;
     key.MakeNewKey();
     CBigNum bnExtraNonce = 0;
-    while (fGenerateBitcoins)
+    while (0/*fGenerateBitcoins*/)
     {
         sleep_micro(50);
 //        CheckForShutdown(3);
@@ -3320,7 +3320,12 @@ bool LoadAddresses()
 
 #include "../test/test_btc.cpp"
 #include "hp/hp_net.h"
-int test_btc_main(int argc, char ** argv);
+#include "hp/hp_http.h"
+#include "hp/hp_config.h"
+extern hp_config_t g_config;
+#define cfg g_config
+#define cfgi(k) atoi(cfg(k))
+//int test_btc_main(int argc, char ** argv);
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char ** argv)
@@ -3330,11 +3335,12 @@ int main(int argc, char ** argv)
 #ifndef NDEBUG
 	rc = test_btc_main(argc, argv);
 #endif //#ifndef NDEBUG
-	/* rmqtt server */
-	static btc_node_io_ctx s_ioctxobj = { 0 }, * s_ioctx = &s_ioctxobj;
-	/* listen fd */
-	static hp_sock_t s_listenfd = 0;
 
+	// load config
+	if(cfgi("#load bitcoin.conf") != 0) return -1;
+	if(cfgi("loglevel") > 1)
+		cfg("#show");
+	hp_log_level = cfgi("loglevel");
     //// debug print
     hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
 
@@ -3416,20 +3422,53 @@ int main(int argc, char ** argv)
             fGenerateBitcoins = atoi(mapArgs["/gen"].c_str());
     }
 
-	s_listenfd = hp_net_listen(8333);
-	if(!hp_sock_is_valid(s_listenfd))
-		return -1;
-	if (s_listenfd <= 0) { return -2; }
-	rc = btc_node_ctx_init(s_ioctx, s_listenfd, 0, 0);
-	if(rc != 0) { return -2; }
+	/* HTTP server */
+	hp_http httpobj, * http = &httpobj;
+	/* BTC node server */
+	btc_node_ctx bctxobj = { 0 }, * bctx = &bctxobj;
+	/* IO context */
+	hp_io_ctx ioctxobj, * ioctx = &ioctxobj;
+	/* listen fd */
+	hp_sock_t bctx_listenfd, http_listenfd;
+
+	bctx_listenfd = hp_net_listen(cfgi("btc.port"));
+	if(!hp_sock_is_valid(bctx_listenfd)){
+		hp_log(stderr, "%s: unable to listen on %d for BTC node\n", __FUNCTION__, cfgi("btc.port"));
+		return -2;
+	}
+	http_listenfd = hp_net_listen(cfgi("http.port"));
+	if(!hp_sock_is_valid(bctx_listenfd)){
+		hp_log(stderr, "%s: unable to listen on %d for HTTP\n", __FUNCTION__, cfgi("http.port"));
+		return -3;
+	}
+	if(!hp_sock_is_valid(bctx_listenfd)) return -4;
+	if(!hp_sock_is_valid(http_listenfd)) return -4;
+
+	if(hp_io_init(ioctx) != 0) return -5;
+	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) return -6;
+	if(btc_node_ctx_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) return -7;
+
 	/* run */
-	hp_log(stdout, "%s: listening on port=%d, waiting for connection ...\n", __FUNCTION__
-			, 8333);
-	for(;!fShutdown;){
-		btc_node_ctx_run(s_ioctx);
+	hp_log(stdout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
+			, cfgi("btc.port"), cfgi("http.port"));
+	for(int i = 0; i < 1000; ++i){
+		hp_io_run(ioctx, 0, 0);
 	}
 
-	btc_node_ctx_uninit(s_ioctx);
+	//clean
+	btc_node_ctx_uninit(bctx);
+	hp_http_uninit(http);
+	hp_io_uninit(ioctx);
+	hp_sock_close(http_listenfd);
+	hp_sock_close(bctx_listenfd);
+	cfg("#unload");
+
+#ifndef NDEBUG
+	hp_log(stdout, "%s: exited with %d\n", __FUNCTION__, rc);
+#endif //#ifndef NDEBUG
+
+	return rc;
+
     //
     // Create the main frame window
     //
@@ -3485,5 +3524,4 @@ int main(int argc, char ** argv)
 //        }
 //    }
 
-	return rc;
 }

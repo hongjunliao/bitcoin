@@ -388,6 +388,7 @@ public:
 extern "C" {
 #include "redis/src/dict.h"	  /* dict */
 #include "redis/src/adlist.h"	  /* list */
+#include "hp/hp_http.h"
 #endif
 #ifdef __cplusplus
 }
@@ -396,11 +397,11 @@ extern "C" {
 typedef CMessageHeader btc_node_msghdr;
 /////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct btc_node_io btc_node_io;
-typedef struct btc_node_io_ctx btc_node_io_ctx;
+typedef struct btc_node btc_node;
+typedef struct btc_node_ctx btc_node_ctx;
 
 /* for BTC client */
-struct btc_node_io {
+struct btc_node {
 	hp_io_t base;
 	sds sid;
 	time_t rping;		/* redis ping-pong */
@@ -409,11 +410,12 @@ struct btc_node_io {
 	listNode * l_msg; 	/* last message sent, from outlist */
 	time_t l_time;      /* last send time */
 	int l_mid;          /* BTC msgid */
-	btc_node_io_ctx * ioctx;
+	btc_node_ctx * ioctx;
 };
 
-struct btc_node_io_ctx {
-	hp_io_ctx base;
+struct btc_node_ctx {
+	hp_io_ctx  * ioctx;
+	hp_io_t 	listenio;
 	int rping_interval; /* redis ping-pong interval */
 	uint16_t mqid;		/* mqtt message_id */
 	int n_nodes;
@@ -421,25 +423,21 @@ struct btc_node_io_ctx {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-int btc_node_io_init(btc_node_io * io, btc_node_io_ctx * ioctx);
-int btc_node_io_loop(btc_node_io * c);
-void btc_node_io_uninit(btc_node_io * io);
-
-int btc_node_ctx_init(btc_node_io_ctx * ioctx
+int btc_node_ctx_init(btc_node_ctx * nodectx
+		, hp_io_ctx * ioctx
 		, hp_sock_t fd, int tcp_keepalive
 		, int ping_interval);
-int btc_node_ctx_run(btc_node_io_ctx * ioctx);
-int btc_node_io_append(btc_node_io * client, char const * topic
+int btc_node_append(btc_node * client, char const * topic
 		, char const * mid, sds message, int flags);
 
-int btc_node_ctx_uninit(btc_node_io_ctx * ioctx);
+void btc_node_ctx_uninit(btc_node_ctx * ioctx);
 
-int btc_node_send_header(btc_node_io * client, uint8_t cmd,
+int btc_node_send_header(btc_node * client, uint8_t cmd,
         uint8_t flags, size_t len);
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-
+int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 

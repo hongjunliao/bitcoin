@@ -32,13 +32,26 @@
 #include "hp/hp_config.h"
 #include "sds/sds.h"
 /////////////////////////////////////////////////////////////////////////////////////////////
+extern hp_config_t g_config;
+#define cfg g_config
+#define cfgi(k) atoi(cfg(k))
+int test_btc_config_main(int argc, char ** argv);
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 int test_btc_main(int argc, char ** argv)
 {
 	int rc;
 	hp_log(stdout, "%s...\n", __FUNCTION__);
+	cfg("#load bitcoin.conf");
 	{
-		int rc = libhp_all_tests_main(argc, argv);
+		if(cfgi("libhp.runtest")){
+			rc = libhp_all_tests_main(argc, argv); assert(rc == 0);
+		}
+	}
+	if(cfgi("btc.runtest"))
+		goto done;
+	{
+		rc = test_btc_config_main(argc, argv); assert(rc == 0);
 	}
 	//base58.h
 	{
@@ -100,6 +113,8 @@ int test_btc_main(int argc, char ** argv)
 		LoadWallet();
 		SetAddressBookName("192.168.1.1", "host1");
 	}
+	cfg("#unload");
+done:
 	hp_log(stdout, "%s done\n", __FUNCTION__);
 	return 0;
 }
