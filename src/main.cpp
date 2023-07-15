@@ -3399,8 +3399,6 @@ int main(int argc, char ** argv)
 	if(rc != 0) quit_(-99);
 #endif //#ifndef NDEBUG
 
-	// load configure if exist
-	cfgi("#load bitcoin.conf");
     /////////////////////////////////////////////////////////////////////////////////////////////
 	// global log level
 	hp_log_level =
@@ -3409,9 +3407,6 @@ int main(int argc, char ** argv)
 #else
 			1;
 #endif //#ifndef NDEBUG
-	loglevel  = cfg("loglevel");
-	if(loglevel[0])
-		hp_log_level = atoi(loglevel);
 
     /////////////////////////////////////////////////////////////////////////////////////////////
     /* parse argc/argv */
@@ -3422,7 +3417,13 @@ int main(int argc, char ** argv)
 		char const * arg = optarg? optarg : "";
 		if(i == 0)     {
 			if(uv_chdir(arg) != 0) { quit_(-3); }
-			strSetDataDir = string(arg);
+			char buffer[PATH_MAX];
+			size_t size = sizeof(buffer);
+			uv_cwd(buffer, &size);
+			strSetDataDir = string(buffer);
+
+			// load configure if exist
+			if(cfgi("#load bitcoin.conf") != 0) { quit_(-4); }
 		}
 		else if(i == 1){
 			char file[512] = "";
@@ -3459,8 +3460,15 @@ int main(int argc, char ** argv)
 	}
 
     /////////////////////////////////////////////////////////////////////////////////////////////
-	if(hp_log_level > 1)
+	loglevel  = cfg("loglevel");
+	if(loglevel[0])
+		hp_log_level = atoi(loglevel);
+
+	if(hp_log_level > 1){
+		fprintf(stdout, "begin configure____________________________\n");
 		cfg("#show");
+		fprintf(stdout, "end configure______________________________\n");
+	}
     //// debug print
     hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
 

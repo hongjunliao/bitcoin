@@ -42,14 +42,14 @@ int test_btc_main(int argc, char ** argv)
 {
 	int rc;
 	hp_log(stdout, "%s...\n", __FUNCTION__);
-	cfg("#load bitcoin.conf");
 	{
 		if(cfgi("libhp.runtest")){
 			rc = libhp_all_tests_main(argc, argv); assert(rc == 0);
 		}
 	}
-	if(cfgi("btc.runtest"))
+	if(!cfgi("btc.runtest"))
 		goto done;
+	cfg("#load bitcoin.conf");
 	{
 		rc = test_btc_config_main(argc, argv); assert(rc == 0);
 	}

@@ -65,7 +65,7 @@ static int inih_handler(void* user, const char* section, const char* name,
 	dict* cfg = (dict*)user;
 	assert(cfg);
 
-	dictAdd(cfg, sdsnew(name), sdsnew(value));
+	dictReplace(cfg, sdsnew(name), sdsnew(value));
 
 	return 1;
 }
@@ -74,24 +74,34 @@ static char const * btc_config_load(char const * id)
 {
 	if(!id) return 0;
 
+	int n;
 	static dict * s_config = 0;
 	if(!s_config){
 		s_config = dictCreate(&configTableDictType, 0);
 	}
 	assert(s_config);
 
-	int n = strlen("#load");
 	if(strcmp(id, "#unload") == 0 && s_config){
 		dictRelease(s_config);
 		s_config = 0;
 		return "0";
 	}
-	else if(strncmp(id, "#load", n) == 0 && strlen(id) >= (n + 2)){
+	else if(strncmp(id, "#load", n = strlen("#load")) == 0 && strlen(id) >= (n + 2)){
 		char const * f = id + n + 1;
 		if (ini_parse(f, inih_handler, s_config) != 0) {
 			hp_log(stderr, "%s: ini_parse failed for  '%s'\n", __FUNCTION__, f);
 			return "-1";
 		}
+		return "0";
+	}
+	else if(strncmp(id, "#set", n = strlen("#set")) == 0 && strlen(id) >= (n + 4)){
+
+		char buf[128]; strncpy(buf, id, sizeof(buf));
+		char * k = buf + n + 1, * v = strchr(k, ' ');
+		if(!v) return "-1";
+
+		*v='\0'; ++v;
+		dictReplace(s_config, sdsnew(k), sdsnew(v));
 		return "0";
 	}
 	else if(strcmp(id, "#show") == 0){
@@ -120,6 +130,8 @@ hp_config_t g_config = btc_config_load;
 
 int test_btc_config_main(int argc, char ** argv)
 {
+	assert(cfgi("#set test.key.name 23") == 0 && cfgi("test.key.name") == 23);
+	assert(cfgi("#set test.key.name 24") == 0 && cfgi("test.key.name") == 24);
 	hp_assert(cfgi("#load bitcoin.conf") == 0, "'#load bitcoin.conf' failed");
 	hp_assert(cfgi("#load this_file_not_exist.conf") != 0, "'#load this_file_not_exist.conf' OK?");
 	hp_assert(strlen(cfg("loglevel")) > 0, "loglevel NOT found");

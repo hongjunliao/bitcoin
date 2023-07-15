@@ -15,7 +15,7 @@
 
 extern bool fClient;
 
-
+extern string strSetDataDir;
 
 
 //
@@ -83,7 +83,7 @@ CDB::CDB(const char* pszFile, const char* pszMode, bool fTxn) : pdb(NULL)
 //            _mkdir(strLogDir.c_str());
 //            printf("dbenv.open strAppDir=%s\n", strAppDir.c_str());
 
-        	string strAppDir("."), strLogDir(".");
+        	string strAppDir = strSetDataDir, strLogDir = strSetDataDir;
             dbenv.set_lg_dir(strLogDir.c_str());
             dbenv.set_lg_max(10000000);
             dbenv.set_lk_max_locks(10000);
