@@ -410,7 +410,7 @@ struct btc_node {
 	listNode * l_msg; 	/* last message sent, from outlist */
 	time_t l_time;      /* last send time */
 	int l_mid;          /* BTC msgid */
-	btc_node_ctx * ioctx;
+	btc_node_ctx * bctx;
 };
 
 struct btc_node_ctx {
@@ -418,7 +418,7 @@ struct btc_node_ctx {
 	hp_io_t 	listenio;
 	int rping_interval; /* redis ping-pong interval */
 	uint16_t mqid;		/* mqtt message_id */
-	int n_nodes;
+	list * nodes;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -427,14 +427,10 @@ int btc_node_ctx_init(btc_node_ctx * nodectx
 		, hp_io_ctx * ioctx
 		, hp_sock_t fd, int tcp_keepalive
 		, int ping_interval);
-int btc_node_append(btc_node * client, char const * topic
-		, char const * mid, sds message, int flags);
-
 void btc_node_ctx_uninit(btc_node_ctx * ioctx);
 
-int btc_node_send_header(btc_node * client, uint8_t cmd,
-        uint8_t flags, size_t len);
-
+/////////////////////////////////////////////////////////////////////////////////////////
+#define btc_node_ctx_count(bctx) (listLength(bctx->nodes))
 /////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);

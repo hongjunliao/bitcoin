@@ -33,8 +33,6 @@ extern "C"{
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-extern bool BitcoinMiner();
-
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /*====================== Hash table type implementation  ==================== */
@@ -162,7 +160,7 @@ static int sdslist_match(void *ptr, void *key)
 //	return strncmp(msg->mid, (char *)key, sdslen(msg->mid)) == 0;
 }
 
-int btc_node_init(btc_node * io, btc_node_ctx * ioctx)
+static int btc_node_init(btc_node * io, btc_node_ctx * ioctx)
 {
 	if(!(io && ioctx))
 		return -1;
@@ -170,7 +168,7 @@ int btc_node_init(btc_node * io, btc_node_ctx * ioctx)
 	memset(io, 0, sizeof(btc_node));
 
 //	io->sid = sdsnew("");
-	io->ioctx = ioctx;
+	io->bctx = ioctx;
 	io->qos = dictCreate(&qosTableDictType, NULL);
 
 	io->outlist = listCreate();
@@ -181,7 +179,7 @@ int btc_node_init(btc_node * io, btc_node_ctx * ioctx)
 	return 0;
 }
 
-int btc_node_append(btc_node * io, char const * topic, char const * mid, sds message, int flags)
+static int btc_node_append(btc_node * io, char const * topic, char const * mid, sds message, int flags)
 {
 	if(!(io && message))
 		return -1;
@@ -197,96 +195,28 @@ int btc_node_append(btc_node * io, char const * topic, char const * mid, sds mes
 	return 0;
 }
 
-void btc_node_uninit(btc_node * io)
+static void btc_node_uninit(btc_node * io)
 {
 	if(!io)
 		return ;
 
 	int rc;
-	btc_node_ctx * ioctx = io->ioctx;
+	btc_node_ctx * ioctx = io->bctx;
 
 	dictRelease(io->qos);
 	listRelease(io->outlist);
 //	sdsfree(io->sid);
 }
 
-int btc_node_loop(btc_node * io)
+
+static int btc_node_loop(btc_node * io)
 {
-	assert(io && io->ioctx);
-
+	assert(io && io->bctx);
 	int rc = 0;
-	btc_node_ctx * ioctx = io->ioctx;
-	btc_node_msghdr * rmsg = 0;
-
-	BitcoinMiner();
-
-//	/* redis ping/pong */
-//	if(ioctx->rping_interval > 0 && io->subc){
-//
-//		if(difftime(time(0), io->rping) > ioctx->rping_interval){
-//
-//			if(hp_log_level > 8)
-//				hp_log(stdout, "%s: fd=%d, Redis PING ...\n", __FUNCTION__, ((hp_io_t *)io)->fd);
-//
-//			hp_sub_ping(io->subc);
-//			io->rping = time(0);
-//		}
-//	}
-//
-//	/* check for current sending message */
-//	if(io->l_msg){
-//		rmsg = (btc_node_rmsg_t *)listNodeValue(io->l_msg);
-//		assert(rmsg);
-//
-//		/* QOS > 0 need ACK */
-//		dictEntry * ent = dictFind(io->qos, rmsg->topic);
-//		int qos = (ent? ent->v.u64 : 2);
-//
-//		if(qos > 0){
-//			/* check if current ACKed */
-//			if(sdslen(rmsg->mid) > 0){
-//				if(difftime(time(0), io->l_time) <= 10)
-//					goto ret;
-//
-//				if(io->l_mid == 0){
-//					/* resend */
-//					rc = btc_node_io_send(io, rmsg, MG_MQTT_QOS(qos));
-//					io->l_time = time(0);
-//				}
-//				goto ret;
-//			}
-//		}
-//		else{ /* QOS=0 at most once */
-//			rc = btc_node_io_send(io, rmsg, MG_MQTT_QOS(qos));
-//			rc = redis_sup_by_topic(ioctx->c, io->sid, rmsg->topic, rmsg->mid, 0);
-//
-//			if(hp_log_level > 0){
-//				hp_log(stdout, "%s: Redis sup, fd=%d, io='%s', key/value='%s'/'%s'\n", __FUNCTION__
-//						, ((hp_io_t *)io)->fd, io->sid, rmsg->topic, rmsg->mid);
-//			}
-//			sdsclear(rmsg->mid);
-//		}
-//	}
-//
-//	/* fetch next message to send */
-//	listNode * node = 0;
-//
-//	if(!io->l_msg)
-//		io->l_msg = listFirst(io->outlist);
-//	else{
-//		node = io->l_msg;
-//		io->l_msg = listNextNode(io->l_msg);
-//	}
-//
-//	if(node)
-//		listDelNode(io->outlist, node);
-//
-//	if(!io->l_msg)
-//		goto ret;	/* empty message, nothing to send */
-//
-//	io->l_time = 0;
-//	io->l_mid = 0;
-//ret:
+goto exit_;
+//	btc_node_ctx * ioctx = io->bctx;
+//	btc_node_msghdr * rmsg = 0;
+exit_:
 	return rc;
 }
 
@@ -296,16 +226,18 @@ static hp_io_t *  btc_node_on_new(hp_io_t * cio, hp_sock_t fd)
 {
 	assert(cio && cio->user);
 
-	btc_node_ctx * c = (btc_node_ctx *)cio->user;
-	if(!c) { return 0; }
+	btc_node_ctx * bctx = (btc_node_ctx *)cio->user;
+	if(!bctx) { return 0; }
 	btc_node * node = (btc_node *)calloc(1, sizeof(btc_node));
-	int rc = btc_node_init(node, c);
+	int rc = btc_node_init(node, bctx);
 	assert(rc == 0);
+
+	listAddNodeTail(bctx->nodes, node);
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(stdout, "%s: new HTTP connection from '%s', IO total=%d\n", __FUNCTION__, hp_get_ipport_cstr(fd, buf),
-				hp_io_count(cio->ioctx));
+		hp_log(stdout, "%s: new BTC connection from '%s', IO total=%d\n", __FUNCTION__, hp_get_ipport_cstr(fd, buf),
+				btc_node_ctx_count(bctx));
 	}
 	return (hp_io_t *)node;
 }
@@ -329,13 +261,16 @@ static int btc_node_on_loop(hp_io_t * io)
 static void btc_node_on_delete(hp_io_t * io)
 {
 	btc_node * node = (btc_node *)io;
-	if(!(node && node->ioctx)) { return; }
+	assert(node && node->bctx);
+	btc_node_ctx * bctx = node->bctx;
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(stdout, "%s: delete HTTP connection '%s', IO total=%d\n", __FUNCTION__
-				, hp_get_ipport_cstr(hp_io_fd(io), buf), hp_io_count(io->ioctx));
+		hp_log(stdout, "%s: delete BTC connection '%s', IO total=%d\n", __FUNCTION__
+				, hp_get_ipport_cstr(hp_io_fd(io), buf), btc_node_ctx_count(bctx));
 	}
+
+	listDelNode(bctx->nodes, 0);
 
 	btc_node_uninit(node);
 	free(node);
@@ -351,27 +286,30 @@ static hp_iohdl s_btc_nodehdl = {
 	.on_loop = btc_node_on_loop
 };
 
-int btc_node_ctx_init(btc_node_ctx * nodectx
+int btc_node_ctx_init(btc_node_ctx * bctx
 	, hp_io_ctx * ioctx
 	, hp_sock_t fd, int tcp_keepalive
 	, int ping_interval)
 {
 	int rc;
-	if (!(nodectx && ioctx)) { return -1; }
+	if (!(bctx && ioctx)) { return -1; }
 
-	nodectx->ioctx = ioctx;
-	nodectx->rping_interval = ping_interval;
+	bctx->ioctx = ioctx;
+	bctx->rping_interval = ping_interval;
 
-	rc = hp_io_add(nodectx->ioctx, &nodectx->listenio, fd, s_btc_nodehdl);
+	rc = hp_io_add(bctx->ioctx, &bctx->listenio, fd, s_btc_nodehdl);
 	if (rc != 0) { return -4; }
 
-	nodectx->listenio.user = nodectx;
+	bctx->nodes = listCreate();
+	bctx->listenio.user = bctx;
+	bctx->listenio.iohdl.on_loop = 0;
 
 	return rc;
 }
 
 void btc_node_ctx_uninit(btc_node_ctx * bctx)
 {
+	listRelease(bctx->nodes);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

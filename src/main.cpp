@@ -122,6 +122,9 @@ string DateTimeStr(int64 nTime){ sds s = hp_timestr(nTime, 0); string str(s); sd
 /////////////////////////////////////////////////////////////////////////////////////////////
 bool fShutdown = false;
 /////////////////////////////////////////////////////////////////////////////////////////////
+//net.cpp
+CAddress addrProxy;
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 CBlockIndex* InsertBlockIndex(uint256 hash)
 {
@@ -3319,6 +3322,8 @@ bool LoadAddresses()
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "../test/test_btc.cpp"
+#include <getopt.h>		/* getopt_long */
+#include <uv.h>			/* uv_chdir */
 #include "hp/hp_net.h"
 #include "hp/hp_http.h"
 #include "hp/hp_config.h"
@@ -3328,55 +3333,139 @@ extern hp_config_t g_config;
 //int test_btc_main(int argc, char ** argv);
 /////////////////////////////////////////////////////////////////////////////////////////////
 
+static int open_connections()
+{
+    foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses){
+//        item.second.print();
+    }
+
+    return 0;
+}
+
+static int btc_ctx_loop(btc_node_ctx * bctx)
+{
+	assert(bctx);
+
+	BitcoinMiner();
+	open_connections();
+
+	return 0;
+}
+/////////////////////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, char ** argv)
 {
 	int rc = 0;
-	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
-#ifndef NDEBUG
-	rc = test_btc_main(argc, argv);
-#endif //#ifndef NDEBUG
-
-	// load config
-	if(cfgi("#load bitcoin.conf") != 0) return -1;
-	if(cfgi("loglevel") > 1)
-		cfg("#show");
-	hp_log_level = cfgi("loglevel");
-    //// debug print
-    hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
-
+#define quit_(code) do{ rc = code; goto exit_; }while(0)
+	/////////////////////////////////////////////////////////////////////////////////////////////
+	//argc,argv
+	char const * loglevel;
+	int c = -1, i;
+	char printblockindex = 0;
+	char gen[64] = "0";
+	struct option long_options[] = {
+			{ "datadir\0 <string>    datadir", required_argument, 0, 0 }
+		,	{ "file\0 <string>       if specified, load as configure file", required_argument, 0, 0 }
+		,	{ "loglevel\0 <int>      log level", required_argument, 0, 0 }
+		,	{ "debug\0               debug", no_argument, 0, 0 }
+		,	{ "dropmessages\0        dropmessages", required_argument, 0, 0 }
+		,	{ "loadblockindextest\0  oadblockindextest", required_argument, 0, 0 }
+		,	{ "printblockindex\0     printblockindex", no_argument, 0, 0 }
+		,	{ "printblocktree\0      printblocktree, same as printblockindex", no_argument, 0, 0 }
+		,	{ "gen\0                 gen", optional_argument, 0, 0 }
+		,	{ "proxy\0 <string>      proxy", required_argument, 0, 0 }
+		,	{ "help\0                print this message", no_argument, 0, 0 }
+		, 	{ 0, 0, 0, 0 } };
     // Parameters
     //
     map<string, string> mapArgs = ParseParameters(argc, argv);
-
-    if (mapArgs.count("/datadir"))
-        strSetDataDir = mapArgs["/datadir"];
-
-//    if (mapArgs.count("/proxy"))
-//        addrProxy = CAddress(mapArgs["/proxy"].c_str());
-
-    if (mapArgs.count("/debug"))
-        fDebug = true;
-
-    if (mapArgs.count("/dropmessages"))
-    {
-        nDropMessagesTest = atoi(mapArgs["/dropmessages"].c_str());
-        if (nDropMessagesTest == 0)
-            nDropMessagesTest = 20;
-    }
-
-    if (mapArgs.count("/loadblockindextest"))
-    {
-//        CTxDB txdb("r");
-        LoadBlockIndex(false);
-        PrintBlockTree();
-        return(0);
-    }
-
-    //
-    // Load data files
-    //
     string strErrors;
 
+	/////////////////////////////////////////////////////////////////////////////////////////////
+	/* HTTP server */
+	hp_http httpobj, * http = &httpobj;
+	/* BTC node server */
+	btc_node_ctx bctxobj = { 0 }, * bctx = &bctxobj;
+	/* IO context */
+	hp_io_ctx ioctxobj, * ioctx = &ioctxobj;
+	/* listen fd */
+	hp_sock_t bctx_listenfd, http_listenfd;
+
+	/////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifndef NDEBUG
+	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
+	rc = test_btc_main(argc, argv);
+	if(rc != 0) quit_(-99);
+#endif //#ifndef NDEBUG
+
+	// load configure if exist
+	cfgi("#load bitcoin.conf");
+    /////////////////////////////////////////////////////////////////////////////////////////////
+	// global log level
+	hp_log_level =
+#ifndef NDEBUG
+			10;
+#else
+			1;
+#endif //#ifndef NDEBUG
+	loglevel  = cfg("loglevel");
+	if(loglevel[0])
+		hp_log_level = atoi(loglevel);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////
+    /* parse argc/argv */
+	while (1) {
+		c = getopt_long(argc, argv, "", long_options, &i);
+		if (c == -1)
+			break;
+		char const * arg = optarg? optarg : "";
+		if(i == 0)     {
+			if(uv_chdir(arg) != 0) { quit_(-3); }
+			strSetDataDir = string(arg);
+		}
+		else if(i == 1){
+			char file[512] = "";
+			snprintf(file, sizeof(file), "#load %s", arg);
+			if(cfgi(file) != 0) { quit_(-4); }
+		}
+		else if(i == 2){  hp_log_level = atoi(arg); }
+		else if(i == 3){  fDebug = true; }
+		else if(i == 4){
+	        nDropMessagesTest = atoi(arg);
+	        if (nDropMessagesTest == 0)
+	            nDropMessagesTest = 20;
+		}
+		else if(i == 5){
+			LoadBlockIndex(false);
+			PrintBlockTree();
+			{ goto exit_; }
+		}
+		else if(i == 6 || i == 7){ printblockindex = 1;  }
+		else if(i == 8){
+			gen[0] = '1';
+			strncpy(gen + 1, arg, sizeof(gen)); }
+		else if(i == 9 ){
+			addrProxy = CAddress(arg);
+		}
+		else if(i == 10 ){
+			fprintf(stdout, "%s <options>\n", argv[0]);
+			for(int j = 0; long_options[j].name; ++j){
+				fprintf(stdout, "  --%s%s\n", long_options[j].name, strchr(long_options[j].name, '\0') + 1);
+			}
+			goto exit_;
+		}
+		else quit_(-5);
+	}
+
+    /////////////////////////////////////////////////////////////////////////////////////////////
+	if(hp_log_level > 1)
+		cfg("#show");
+    //// debug print
+    hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
+
+    // Load data files
+    //
     hp_log(stdout, "Loading addresses...\n");
     if (!LoadAddresses())
         strErrors += "Error loading addr.dat      \n";
@@ -3399,60 +3488,51 @@ int main(int argc, char ** argv)
     if (!strErrors.empty())
     {
         hp_log(stderr, strErrors.c_str());
-        return -3;
+        quit_(-6);
     }
 
     // Add wallet transactions that aren't already in a block to mapTransactions
     ReacceptWalletTransactions();
 
-    //
-    // Parameters
-    //
-    if (mapArgs.count("/printblockindex") || mapArgs.count("/printblocktree"))
+    if (printblockindex)
     {
         PrintBlockTree();
-        return -4;
+        { goto exit_; }
     }
 
-    if (mapArgs.count("/gen"))
+    if (gen[0] != '0')
     {
-        if (mapArgs["/gen"].empty())
+        if (!gen[1])
             fGenerateBitcoins = true;
         else
-            fGenerateBitcoins = atoi(mapArgs["/gen"].c_str());
+            fGenerateBitcoins = atoi(gen + 1);
     }
 
-	/* HTTP server */
-	hp_http httpobj, * http = &httpobj;
-	/* BTC node server */
-	btc_node_ctx bctxobj = { 0 }, * bctx = &bctxobj;
-	/* IO context */
-	hp_io_ctx ioctxobj, * ioctx = &ioctxobj;
-	/* listen fd */
-	hp_sock_t bctx_listenfd, http_listenfd;
+	/////////////////////////////////////////////////////////////////////////////////////////////
 
 	bctx_listenfd = hp_net_listen(cfgi("btc.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
 		hp_log(stderr, "%s: unable to listen on %d for BTC node\n", __FUNCTION__, cfgi("btc.port"));
-		return -2;
+		quit_(-7);
 	}
 	http_listenfd = hp_net_listen(cfgi("http.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
 		hp_log(stderr, "%s: unable to listen on %d for HTTP\n", __FUNCTION__, cfgi("http.port"));
-		return -3;
+		quit_(-8);
 	}
-	if(!hp_sock_is_valid(bctx_listenfd)) return -4;
-	if(!hp_sock_is_valid(http_listenfd)) return -4;
+	if(!hp_sock_is_valid(bctx_listenfd)) quit_(-9);
+	if(!hp_sock_is_valid(http_listenfd)) quit_(-10);
 
-	if(hp_io_init(ioctx) != 0) return -5;
-	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) return -6;
-	if(btc_node_ctx_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) return -7;
+	if(hp_io_init(ioctx) != 0) quit_(-11);
+	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) quit_(-12);
+	if(btc_node_ctx_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) quit_(-13);
 
 	/* run */
 	hp_log(stdout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
 	for(int i = 0; i < 1000; ++i){
 		hp_io_run(ioctx, 0, 0);
+		btc_ctx_loop(bctx);
 	}
 
 	//clean
@@ -3463,8 +3543,9 @@ int main(int argc, char ** argv)
 	hp_sock_close(bctx_listenfd);
 	cfg("#unload");
 
+exit_:
 #ifndef NDEBUG
-	hp_log(stdout, "%s: exited with %d\n", __FUNCTION__, rc);
+	hp_log(rc == 0? stdout : stderr, "%s: exited with %d\n", __FUNCTION__, rc);
 #endif //#ifndef NDEBUG
 
 	return rc;
