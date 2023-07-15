@@ -31,12 +31,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 ###########################################################################################
 # sources and deps
-set(g_withs 1 1 1 1 1 1)
-set(g_hdrs openssl/ssl.h db_cxx.h .nullfilesub.h .nullfilesrc.h .nullfilesrc.h .nullfilesrc.h)
-set(g_incs .find_path .find_path "deps/libhp/include/" .find_path "${PROJECT_BINARY_DIR}/ deps/" .find_path )
-set(g_deps openssl db_cxx libhp sds .src cryptopp)
+set(g_withs 1 1 1 1 1 1 1 1)
+set(g_hdrs openssl/ssl.h db_cxx.h .nullfilesub.h .nullfilesrc.h .nullfilesrc.h .nullfilesrc.h 
+	uv.h .nullfilesrc.h)
+set(g_incs .find_path .find_path "deps/libhp/include/" .find_path "${PROJECT_BINARY_DIR}/ deps/" .find_path 
+	.find_path .find_path)
+set(g_deps openssl db_cxx libhp sds .src cryptopp 
+	uv inih)
 
-set(g_libs "ssl crypto"  db_cxx libhp "deps/sds/*.c" "src/*.cpp " "deps/cryptopp/*.cpp")
+set(g_libs "ssl crypto"  db_cxx libhp "deps/sds/*.c" "src/*.cpp " "deps/cryptopp/*.cpp" 
+	uv deps/inih/*.c)
 
 ###########################################################################################
 
