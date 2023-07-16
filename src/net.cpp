@@ -160,51 +160,39 @@ static int sdslist_match(void *ptr, void *key)
 //	return strncmp(msg->mid, (char *)key, sdslen(msg->mid)) == 0;
 }
 
-static int btc_node_init(btc_node * io, btc_node_ctx * ioctx)
+int btc_node_init(btc_node * node, btc_node_ctx * bctx)
 {
-	if(!(io && ioctx))
+	if(!(node && bctx))
 		return -1;
 
-	memset(io, 0, sizeof(btc_node));
+	memset(node, 0, sizeof(btc_node));
 
 //	io->sid = sdsnew("");
-	io->bctx = ioctx;
-	io->qos = dictCreate(&qosTableDictType, NULL);
+	node->bctx = bctx;
+//	io->qos = dictCreate(&qosTableDictType, NULL);
+//
+//	io->outlist = listCreate();
+////	listSetDupMethod(io->outlist, sdslist_dup);
+//	listSetFreeMethod(io->outlist, sdslist_free);
+//	listSetMatchMethod(io->outlist, sdslist_match);
 
-	io->outlist = listCreate();
-//	listSetDupMethod(io->outlist, sdslist_dup);
-	listSetFreeMethod(io->outlist, sdslist_free);
-	listSetMatchMethod(io->outlist, sdslist_match);
-
-	return 0;
-}
-
-static int btc_node_append(btc_node * io, char const * topic, char const * mid, sds message, int flags)
-{
-	if(!(io && message))
-		return -1;
-
-	btc_node_msghdr * jmsg = (btc_node_msghdr *)calloc(1, sizeof(btc_node_msghdr));
-//	jmsg->payload = sdsnew(message);
-//	jmsg->topic = sdsnew(topic);
-//	jmsg->mid = sdsnew(mid);
-
-	list * li = listAddNodeTail(((btc_node *)io)->outlist, jmsg);
-	assert(li);
+	hp_iohdl hdl = bctx->listenio.iohdl;
+	hdl.on_new = 0;
+	node->io.iohdl = hdl;
 
 	return 0;
 }
 
-static void btc_node_uninit(btc_node * io)
+void btc_node_uninit(btc_node * node)
 {
-	if(!io)
+	if(!node)
 		return ;
 
 	int rc;
-	btc_node_ctx * ioctx = io->bctx;
+	btc_node_ctx * ioctx = node->bctx;
 
-	dictRelease(io->qos);
-	listRelease(io->outlist);
+//	dictRelease(io->qos);
+//	listRelease(io->outlist);
 //	sdsfree(io->sid);
 }
 
@@ -312,6 +300,11 @@ void btc_node_ctx_uninit(btc_node_ctx * bctx)
 	listRelease(bctx->nodes);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////
+btc_node * btc_node_find(btc_node_ctx * bctx, int (* match)(void *ptr, void *key))
+{
+	return 0;
+}
 /////////////////////////////////////////////////////////////////////////////////////////
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp)
 {

@@ -402,14 +402,14 @@ typedef struct btc_node_ctx btc_node_ctx;
 
 /* for BTC client */
 struct btc_node {
-	hp_io_t base;
-	sds sid;
-	time_t rping;		/* redis ping-pong */
-	dict * qos;			/* topic=>QOS */
-	list * outlist;     /* pendding out messages */
-	listNode * l_msg; 	/* last message sent, from outlist */
-	time_t l_time;      /* last send time */
-	int l_mid;          /* BTC msgid */
+	hp_io_t io;
+//	sds sid;
+//	time_t rping;		/* redis ping-pong */
+//	dict * qos;			/* topic=>QOS */
+//	list * outlist;     /* pendding out messages */
+//	listNode * l_msg; 	/* last message sent, from outlist */
+//	time_t l_time;      /* last send time */
+//	int l_mid;          /* BTC msgid */
 	btc_node_ctx * bctx;
 };
 
@@ -423,7 +423,11 @@ struct btc_node_ctx {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-int btc_node_ctx_init(btc_node_ctx * nodectx
+int btc_node_init(btc_node * node, btc_node_ctx * ioctx);
+void btc_node_uninit(btc_node * node);
+/////////////////////////////////////////////////////////////////////////////////////////
+
+int btc_node_ctx_init(btc_node_ctx * bctx
 		, hp_io_ctx * ioctx
 		, hp_sock_t fd, int tcp_keepalive
 		, int ping_interval);
@@ -431,6 +435,7 @@ void btc_node_ctx_uninit(btc_node_ctx * ioctx);
 
 /////////////////////////////////////////////////////////////////////////////////////////
 #define btc_node_ctx_count(bctx) (listLength(bctx->nodes))
+btc_node * btc_node_find(btc_node_ctx * bctx, int (* match)(void *ptr, void *key));
 /////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);

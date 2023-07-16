@@ -3333,10 +3333,39 @@ extern hp_config_t g_config;
 //int test_btc_main(int argc, char ** argv);
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-static int open_connections()
+static int find_by_addr_in(void *ptr, void *key)
 {
+	return -1;
+}
+
+static int open_connections(btc_node_ctx * bctx)
+{
+	assert(bctx);
+	int rc;
+
+	if(btc_node_ctx_count(bctx) >= 15)
+		return 0;
+
     foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses){
-//        item.second.print();
+
+    	if(!btc_node_find(bctx, find_by_addr_in)){
+
+    		hp_log(std::cout, "%s: connecting to '%s' => '%s' ...\n", __FUNCTION__
+    				,""/*item.first*/, item.second.ToString());
+
+    		hp_log(stdout, "", item.second.ToString());
+    		hp_sock_t confd = hp_net_connect_addr2(item.second.GetSockAddr());
+    		if(hp_sock_is_valid(confd)) {
+    			btc_node * node = (btc_node *)malloc(sizeof(btc_node));
+    			rc = btc_node_init(node, bctx); assert(rc == 0);
+    			rc = hp_io_add(bctx->ioctx, (hp_io_t *)node, confd, node->io.iohdl);
+    			if(rc != 0) {
+    				btc_node_uninit(node);
+    				free(node);
+    				continue;
+    			}
+    		}
+    	}
     }
 
     return 0;
@@ -3347,7 +3376,7 @@ static int btc_ctx_loop(btc_node_ctx * bctx)
 	assert(bctx);
 
 	BitcoinMiner();
-	open_connections();
+	open_connections(bctx);
 
 	return 0;
 }
@@ -3375,6 +3404,9 @@ int main(int argc, char ** argv)
 		,	{ "gen\0                 gen", optional_argument, 0, 0 }
 		,	{ "proxy\0 <string>      proxy", required_argument, 0, 0 }
 		,	{ "help\0                print this message", no_argument, 0, 0 }
+#ifndef NDEBUG
+		,	{ "test\0 <int>          run test", required_argument, 0, 0 }
+#endif //#ifndef NDEBUG
 		, 	{ 0, 0, 0, 0 } };
     // Parameters
     //
@@ -3390,14 +3422,6 @@ int main(int argc, char ** argv)
 	hp_io_ctx ioctxobj, * ioctx = &ioctxobj;
 	/* listen fd */
 	hp_sock_t bctx_listenfd, http_listenfd;
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-
-#ifndef NDEBUG
-	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
-	rc = test_btc_main(argc, argv);
-	if(rc != 0) quit_(-99);
-#endif //#ifndef NDEBUG
 
     /////////////////////////////////////////////////////////////////////////////////////////////
 	// global log level
@@ -3456,6 +3480,12 @@ int main(int argc, char ** argv)
 			}
 			goto exit_;
 		}
+#ifndef NDEBUG
+		else if(i == 11 ){
+			if(strstr(arg, ".libhp")) { cfg("#set libhp.runtest 1"); }
+			if(strstr(arg, ".btc")) { cfg("#set btc.runtest 1"); }
+		}
+#endif //#ifndef NDEBUG
 		else quit_(-5);
 	}
 
@@ -3469,7 +3499,16 @@ int main(int argc, char ** argv)
 		cfg("#show");
 		fprintf(stdout, "end configure______________________________\n");
 	}
-    //// debug print
+
+	/////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifndef NDEBUG
+	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
+	rc = test_btc_main(argc, argv);
+	if(rc != 0) quit_(-99);
+#endif //#ifndef NDEBUG
+
+	//// debug print
     hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
 
     // Load data files
@@ -3538,7 +3577,7 @@ int main(int argc, char ** argv)
 	/* run */
 	hp_log(stdout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
-	for(int i = 0; i < 1000; ++i){
+	for(int i = 0; i < 100000; ++i){
 		hp_io_run(ioctx, 0, 0);
 		btc_ctx_loop(bctx);
 	}
