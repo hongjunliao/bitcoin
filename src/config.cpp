@@ -15,7 +15,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include "hp/hp_assert.h"
-#include "hp/sdsinc.h"
+//#include "hp/sdsinc.h"
 #include "hp/hp_config.h"
 #include "inih/ini.h"		//ini_parse
 extern "C"{
@@ -24,10 +24,10 @@ extern "C"{
 #include <string.h>
 /////////////////////////////////////////////////////////////////////////////////////////
 /*====================== Hash table type implementation  ==================== */
-static int r_dictSdsKeyCompare(void *privdata, const void *key1,  const void *key2)
+static int r_dictSdsKeyCompare(dict *d, const void *key1, const void *key2)
 {
     int l1,l2;
-    DICT_NOTUSED(privdata);
+//    DICT_NOTUSED(privdata);
 
     l1 = sdslen((sds)key1);
     l2 = sdslen((sds)key2);
@@ -35,11 +35,11 @@ static int r_dictSdsKeyCompare(void *privdata, const void *key1,  const void *ke
     return memcmp(key1, key2, l1) == 0;
 }
 
-static void r_dictSdsDestructor(void *privdata, void *val)
+static void r_dictSdsDestructor(dict *d, void *obj)
 {
-    DICT_NOTUSED(privdata);
+//    DICT_NOTUSED(privdata);
 
-    sdsfree((sds)val);
+    sdsfree((sds)obj);
 }
 
 static uint64_t r_dictSdsHash(const void *key) {
@@ -77,7 +77,7 @@ static char const * btc_config_load(char const * id)
 	int n;
 	static dict * s_config = 0;
 	if(!s_config){
-		s_config = dictCreate(&configTableDictType, 0);
+		s_config = dictCreate(&configTableDictType);
 	}
 	assert(s_config);
 
@@ -108,7 +108,7 @@ static char const * btc_config_load(char const * id)
 		dictIterator * iter = dictGetIterator(s_config);
 		dictEntry * ent;
 		for(ent = 0; (ent = dictNext(iter));){
-			printf("'%s'=>'%s'\n", (char *)ent->key, (char *)ent->v.val);
+			printf("'%s'=>'%s'\n", (char *)dictGetKey(ent), (char *)dictGetVal(ent));
 		}
 		dictReleaseIterator(iter);
 		return "0";

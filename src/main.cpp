@@ -25,7 +25,7 @@
 #include "util.h"
 #include "base58.h"
 #include "db.h"
-#include "sds/sds.h"	//sds
+#include "hp/sdsinc.h"	//sds
 #include "hp/string_util.h"
 #include "cryptopp/sha.h"
 #include "hp/hp_log.h"

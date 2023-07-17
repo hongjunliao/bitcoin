@@ -15,6 +15,8 @@
 
 #include "config.h"
 
+#ifndef NDEBUG
+
 #include "hp/hp_log.h"
 #include <cassert>
 #include <stdexcept>
@@ -120,5 +122,5 @@ done:
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
+#endif //NDEBUG
 #endif //BTC_TEST_H

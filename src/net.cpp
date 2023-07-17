@@ -23,23 +23,21 @@
 #include "hp/str_dump.h"
 #include "net.h"
 
+#include "hp/hp_http.h"
 #include "hp/hp_net.h"
 extern "C"{
 #include "redis/src/dict.h"	  	/* dict */
 #include "redis/src/adlist.h"	/* list */
-#include "sds/sds.h"			/* sds */
-#include "hp/hp_http.h"
-#include "hp/hp_net.h"
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /*====================== Hash table type implementation  ==================== */
-static int r_dictSdsKeyCompare(void *privdata, const void *key1,  const void *key2)
+static int r_dictSdsKeyCompare(dict *d, const void *key1, const void *key2)
 {
     int l1,l2;
-    DICT_NOTUSED(privdata);
+//    DICT_NOTUSED(privdata);
 
     l1 = sdslen((sds)key1);
     l2 = sdslen((sds)key2);
@@ -47,11 +45,11 @@ static int r_dictSdsKeyCompare(void *privdata, const void *key1,  const void *ke
     return memcmp(key1, key2, l1) == 0;
 }
 
-static void r_dictSdsDestructor(void *privdata, void *val)
+static void r_dictSdsDestructor(dict *d, void *obj)
 {
-    DICT_NOTUSED(privdata);
+//    DICT_NOTUSED(privdata);
 
-//    sdsfree((sds)val);
+    sdsfree((sds)obj);
 }
 
 static uint64_t r_dictSdsHash(const void *key) {

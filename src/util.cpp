@@ -18,7 +18,7 @@
 #include <cstdarg>
 #include <set>
 
-#include "sds/sds.h"	//sds
+#include "hp/sdsinc.h"	//sds
 
 using std::set;
 
