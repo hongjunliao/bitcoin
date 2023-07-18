@@ -65,7 +65,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 #	set(LIBHP_DEPRECADTED 1 CACHE INTERNAL "LIBHP_DEPRECADTED")
 endif()
 
-hp_cmake_find_deps(SRCS LIBHP_WITH_ g_withs g_hdrs g_incs g_deps g_libs)
+hp_cmake_find_deps(SRCS LIBHP_WITH_ deps g_withs g_hdrs g_incs g_deps g_libs)
 #message("bitcoin-v0.1.5: SRCS=${SRCS}")
 add_executable(bitcoin-v0.1.5 ${SRCS})
 
