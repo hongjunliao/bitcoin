@@ -125,7 +125,7 @@ hp_config_t g_config = btc_config_load;
 
 /////////////////////////////////////////////////////////////////////////////////////////
 #ifndef NDEBUG
-#define cfg g_config
+#define cfg hp_config_test
 #define cfgi(k) atoi(cfg(k))
 
 int test_btc_config_main(int argc, char ** argv)
@@ -136,7 +136,6 @@ int test_btc_config_main(int argc, char ** argv)
 	hp_assert(cfgi("#load this_file_not_exist.conf") != 0, "'#load this_file_not_exist.conf' OK?");
 	hp_assert(strlen(cfg("loglevel")) > 0, "loglevel NOT found");
 	hp_assert(strlen(cfg("#show")) > 0, "#show failed");
-	assert(cfgi("#unload") == 0);
 
 	return 0;
 }

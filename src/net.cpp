@@ -218,12 +218,12 @@ static hp_io_t *  btc_node_on_new(hp_io_t * cio, hp_sock_t fd)
 	int rc = btc_node_init(node, bctx);
 	assert(rc == 0);
 
-	listAddNodeTail(bctx->nodes, node);
+	listAddNodeTail(bctx->peerlist, node);
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(stdout, "%s: new BTC connection from '%s', IO total=%d\n", __FUNCTION__, hp_get_ipport_cstr(fd, buf),
-				btc_node_ctx_count(bctx));
+		hp_log(stdout, "%s: new BTC connection from '%s', total=%d\n", __FUNCTION__
+				, get_ipport_cstr2(&cio->addr, ":", buf, sizeof(buf)), btc_peer_node_count(bctx));
 	}
 	return (hp_io_t *)node;
 }
@@ -241,36 +241,78 @@ static int btc_node_on_dispatch(hp_io_t * io, hp_iohdr_t * imhdr, char * body)
 
 static int btc_node_on_loop(hp_io_t * io)
 {
+	if(io->iohdl.on_new)
+		return 0;
 	return btc_node_loop((btc_node *)io);
 }
 
 static void btc_node_on_delete(hp_io_t * io)
 {
-	btc_node * node = (btc_node *)io;
-	assert(node && node->bctx);
-	btc_node_ctx * bctx = node->bctx;
+	btc_node * bnode = (btc_node *)io;
+	assert(bnode && bnode->bctx);
+	btc_node_ctx * bctx = bnode->bctx;
+
+	listNode * node = listSearchKey(bnode->bctx->peerlist, io);
+	assert(node);
+	listDelNode(bnode->bctx->peerlist, node);
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(stdout, "%s: delete BTC connection '%s', IO total=%d\n", __FUNCTION__
-				, hp_get_ipport_cstr(hp_io_fd(io), buf), btc_node_ctx_count(bctx));
+		hp_log(stdout, "%s: delete BTC connection '%s', total=%d\n", __FUNCTION__
+				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), btc_peer_node_count(bctx));
 	}
 
-	listDelNode(bctx->nodes, 0);
+	listDelNode(bctx->peerlist, node);
 
-	btc_node_uninit(node);
-	free(node);
-
+	btc_node_uninit(bnode);
+	free(bnode);
 }
 
-/* callbacks for btc_node clients */
-static hp_iohdl s_btc_nodehdl = {
+/* callbacks for btc_node peers */
+static hp_iohdl s_btc_peer_nodehdl = {
 	.on_new = btc_node_on_new,
 	.on_parse = btc_node_on_parse,
 	.on_dispatch = btc_node_on_dispatch,
 	.on_delete = btc_node_on_delete,
 	.on_loop = btc_node_on_loop
 };
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+static void btc_node_sent_on_delete(hp_io_t * io)
+{
+	btc_node * bnode = (btc_node *)io;
+	assert(bnode && bnode->bctx);
+	btc_node_ctx * bctx = bnode->bctx;
+
+	listNode * node = listSearchKey(bnode->bctx->sentlist, bnode);
+	assert(node);
+	listDelNode(bctx->sentlist, node);
+
+	if(hp_log_level > 0){
+		char buf[64] = "";
+		hp_log(stdout, "%s: disconnected from '%s', total=%d\n", __FUNCTION__
+				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), btc_peer_node_count(bctx));
+	}
+	btc_node_uninit(bnode);
+	free(bnode);
+}
+
+static int btc_node_sent_on_loop(hp_io_t * io)
+{
+	return 0;
+}
+
+/* callbacks for btc_node sent */
+static hp_iohdl s_btc_node_sent_hdl = {
+	.on_new = 0,
+	.on_parse = btc_node_on_parse,
+	.on_dispatch = btc_node_on_dispatch,
+	.on_delete = btc_node_sent_on_delete,
+	.on_loop = btc_node_sent_on_loop
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_node_ctx_init(btc_node_ctx * bctx
 	, hp_io_ctx * ioctx
@@ -283,10 +325,12 @@ int btc_node_ctx_init(btc_node_ctx * bctx
 	bctx->ioctx = ioctx;
 	bctx->rping_interval = ping_interval;
 
-	rc = hp_io_add(bctx->ioctx, &bctx->listenio, fd, s_btc_nodehdl);
+	rc = hp_io_add(bctx->ioctx, &bctx->listenio, fd, s_btc_peer_nodehdl);
 	if (rc != 0) { return -4; }
 
-	bctx->nodes = listCreate();
+	bctx->peerlist = listCreate();
+	bctx->sentlist = listCreate();
+
 	bctx->listenio.user = bctx;
 	bctx->listenio.iohdl.on_loop = 0;
 
@@ -295,13 +339,44 @@ int btc_node_ctx_init(btc_node_ctx * bctx
 
 void btc_node_ctx_uninit(btc_node_ctx * bctx)
 {
-	listRelease(bctx->nodes);
+	listRelease(bctx->peerlist);
+	listRelease(bctx->sentlist);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-btc_node * btc_node_find(btc_node_ctx * bctx, int (* match)(void *ptr, void *key))
+btc_node * btc_connect(btc_node_ctx * bctx, struct sockaddr_in addr)
 {
-	return 0;
+	int rc;
+	if(!(bctx)) return 0;
+
+	hp_sock_t confd = hp_net_connect_addr2(addr);
+	if (!hp_sock_is_valid(confd)) {
+		return 0;
+	}
+	btc_node *node = (btc_node*) malloc(sizeof(btc_node));
+	rc = btc_node_init(node, bctx);
+	assert(rc == 0);
+	rc = hp_io_add(bctx->ioctx, (hp_io_t*) node, confd, s_btc_node_sent_hdl);
+	if (rc != 0) {
+		btc_node_uninit(node);
+		free(node);
+		return 0;
+	}
+
+	node->io.addr = addr;
+	listAddNodeTail(bctx->sentlist, node);
+	return node;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+btc_node * btc_node_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr, void *key))
+{
+	list li = { .match = bctx->peerlist->match };
+	listSetMatchMethod(bctx->peerlist, match);
+	listNode * node = listSearchKey(bctx->peerlist, key);
+	listSetMatchMethod(bctx->peerlist, li.match);
+
+	return (btc_node *)(node? listNodeValue(node) : 0);
 }
 /////////////////////////////////////////////////////////////////////////////////////////
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp)

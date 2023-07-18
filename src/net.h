@@ -350,6 +350,9 @@ public:
 
     bool IsRoutable() const
     {
+#ifndef NDEBUG
+    	return true;
+#endif
         return !(GetByte(3) == 10 || (GetByte(3) == 192 && GetByte(2) == 168) || GetByte(3) == 127 || GetByte(3) == 0);
     }
 
@@ -418,7 +421,8 @@ struct btc_node_ctx {
 	hp_io_t 	listenio;
 	int rping_interval; /* redis ping-pong interval */
 	uint16_t mqid;		/* mqtt message_id */
-	list * nodes;
+	list * peerlist;	/* peer node s list */
+	list * sentlist;	/* nodes sent */
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -434,8 +438,11 @@ int btc_node_ctx_init(btc_node_ctx * bctx
 void btc_node_ctx_uninit(btc_node_ctx * ioctx);
 
 /////////////////////////////////////////////////////////////////////////////////////////
-#define btc_node_ctx_count(bctx) (listLength(bctx->nodes))
-btc_node * btc_node_find(btc_node_ctx * bctx, int (* match)(void *ptr, void *key));
+
+btc_node * btc_connect(btc_node_ctx * bctx, struct sockaddr_in addr);
+/////////////////////////////////////////////////////////////////////////////////////////
+#define btc_peer_node_count(bctx) (listLength(bctx->peerlist))
+btc_node * btc_node_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr, void *key));
 /////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);

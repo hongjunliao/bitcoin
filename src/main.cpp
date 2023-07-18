@@ -79,15 +79,28 @@ CAddress addrIncoming;
 
 map<string, string> mapAddressBook;
 
-bool fClient = false;
 bool fDebug = false;
 static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 /////////////////////////////////////////////////////////////////////////////////////////////
-map<vector<unsigned char>, CAddress> mapAddresses;
+//
+// net.cpp
+//
+bool fClient = false;
 uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
 CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
-map<vector<unsigned char>, CAddress> mapIRCAddresses;
+//CNode nodeLocalHost(INVALID_SOCKET, CAddress("127.0.0.1", nLocalServices));
+//CNode* pnodeLocalHost = &nodeLocalHost;
+bool fShutdown = false;
+std::array<bool, 10> vfThreadRunning;
+//vector<CNode*> vNodes;
+map<vector<unsigned char>, CAddress> mapAddresses;
+map<CInv, CDataStream> mapRelay;
+std::deque<pair<int64, CInv> > vRelayExpiration;
+map<CInv, int64> mapAlreadyAskedFor;
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+//irc.cpp
+map<vector<unsigned char>, CAddress> mapIRCAddresses;
 /////////////////////////////////////////////////////////////////////////////////////////////
 CBlockIndex* InsertBlockIndex(uint256 hash);
 string GetAppDir();
@@ -119,8 +132,6 @@ bool IsMine(const CScript& scriptPubKey);
 bool SignSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL, CScript scriptPrereq=CScript());
 bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, int nHashType=0);
 string DateTimeStr(int64 nTime){ sds s = hp_timestr(nTime, 0); string str(s); sdsfree(s); return str; }
-/////////////////////////////////////////////////////////////////////////////////////////////
-bool fShutdown = false;
 /////////////////////////////////////////////////////////////////////////////////////////////
 //net.cpp
 CAddress addrProxy;
@@ -3321,55 +3332,215 @@ bool LoadAddresses()
 }
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "../test/test_btc.cpp"
 #include <getopt.h>		/* getopt_long */
 #include <uv.h>			/* uv_chdir */
 #include "hp/hp_net.h"
 #include "hp/hp_http.h"
 #include "hp/hp_config.h"
+/////////////////////////////////////////////////////////////////////////////////////////////
 extern hp_config_t g_config;
 #define cfg g_config
 #define cfgi(k) atoi(cfg(k))
 //int test_btc_main(int argc, char ** argv);
+
+int test_btc_main(int argc, char ** argv);
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-static int find_by_addr_in(void *ptr, void *key)
+typedef struct addr_conn {
+	CAddress addrs;
+	time_t last_connect;
+	int timeout;
+} addr_conn;
+
+addr_conn * addr_conns_new(size_t n )
 {
-	return -1;
+//	return malloc()
+}
+addr_conn * addr_conn_get();
+void addr_conn_push();
+
+static int find_by_ip(void *ptr, void *key)
+{
+	assert(ptr && key);
+	btc_node * node  = (btc_node *)ptr;
+//	struct sockaddr_in * pk = (struct sockaddr_in * )key;
+//	return node->io.addr.sin_port == pk->sin_port;
+	int * pk = (int *)key;
+
+	return node->io.addr.sin_addr.s_addr == *pk;
 }
 
 static int open_connections(btc_node_ctx * bctx)
-{
+ {
 	assert(bctx);
 	int rc;
+	//	addr_conn * conns = addr_conn_alloc(mapAddresses.size());
+	//
+	//	addr_conn * conn = addr_conn_get();
+	//	conn.last_connect = time();
+	//	if(!connect){
+	//		conn.timeout += 10;
+	//		addrconn.push()
+	//	}
 
-	if(btc_node_ctx_count(bctx) >= 15)
+	static time_t lastt = 0;
+	if (difftime(time(0), lastt) < 10)
+		return 0;
+	lastt = time(0);
+
+//	foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses) {
+//
+//		sockaddr_in key = item.second.GetSockAddr();
+//		if (!btc_node_find(bctx, &key, find_by_ip)) {
+//
+//			hp_log(std::cout, "%s: connecting to '%s' => '%s' ...\n",
+//					__FUNCTION__, ""/*item.first*/, item.second.ToString());
+//
+//			hp_sock_t confd = hp_net_connect_addr2(item.second.GetSockAddr());
+//			if (hp_sock_is_valid(confd)) {
+//				btc_node *node = (btc_node*) malloc(sizeof(btc_node));
+//				rc = btc_node_init(node, bctx);
+//				assert(rc == 0);
+//				rc = hp_io_add(bctx->ioctx, (hp_io_t*) node, confd,
+//						node->io.iohdl);
+//				if (rc != 0) {
+//					btc_node_uninit(node);
+//					free(node);
+//					continue;
+//				}
+//				break;
+//			}
+//		}
+//	}
+
+	// Initiate network connections
+	int nTry = 0;
+	bool fIRCOnly = false;
+	const int nMaxConnections = 15;
+	int nnodes = btc_peer_node_count(bctx);
+
+	// Wait
+	if (nnodes >= 15 || nnodes >= mapAddresses.size())
 		return 0;
 
-    foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses){
+	//
+	// The IP selection process is designed to limit vulnerability to address flooding.
+	// Any class C (a.b.c.?) has an equal chance of being chosen, then an IP is
+	// chosen within the class C.  An attacker may be able to allocate many IPs, but
+	// they would normally be concentrated in blocks of class C's.  They can hog the
+	// attention within their class C, but not the whole IP address space overall.
+	// A lone node in a class C will get as much attention as someone holding all 255
+	// IPs in another class C.
+	//
 
-    	if(!btc_node_find(bctx, find_by_addr_in)){
+	// Every other try is with IRC addresses only
+	fIRCOnly = !fIRCOnly;
+	if (mapIRCAddresses.empty())
+		fIRCOnly = false;
+	else if (nTry++ < 30 && nnodes < nMaxConnections / 2)
+		fIRCOnly = true;
 
-    		hp_log(std::cout, "%s: connecting to '%s' => '%s' ...\n", __FUNCTION__
-    				,""/*item.first*/, item.second.ToString());
+	// Make a list of unique class C's
+	unsigned char pchIPCMask[4] = { 0xff, 0xff, 0xff, 0x00 };
+	unsigned int nIPCMask = *(unsigned int*) pchIPCMask;
+	vector<unsigned int> vIPC;
+	{
+		vIPC.reserve(mapAddresses.size());
+		unsigned int nPrev = 0;
+		foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses) {
+			const CAddress &addr = item.second;
+			if (!addr.IsIPv4())
+				continue;
+			if (fIRCOnly && !mapIRCAddresses.count(item.first))
+				continue;
 
-    		hp_log(stdout, "", item.second.ToString());
-    		hp_sock_t confd = hp_net_connect_addr2(item.second.GetSockAddr());
-    		if(hp_sock_is_valid(confd)) {
-    			btc_node * node = (btc_node *)malloc(sizeof(btc_node));
-    			rc = btc_node_init(node, bctx); assert(rc == 0);
-    			rc = hp_io_add(bctx->ioctx, (hp_io_t *)node, confd, node->io.iohdl);
-    			if(rc != 0) {
-    				btc_node_uninit(node);
-    				free(node);
-    				continue;
-    			}
-    		}
-    	}
-    }
+			// Taking advantage of mapAddresses being in sorted order,
+			// with IPs of the same class C grouped together.
+			unsigned int ipC = addr.ip & nIPCMask;
+			if (ipC != nPrev)
+				vIPC.push_back(nPrev = ipC);
+		}
+	}
+	if (vIPC.empty())
+		return 0;
 
-    return 0;
+	// Choose a random class C
+	unsigned int ipC = vIPC[GetRand(vIPC.size())];
+
+	// Organize all addresses in the class C by IP
+	map<unsigned int, vector<CAddress> > mapIP;
+	{
+		int64 nDelay = ((30 * 60) << nnodes);
+		if (!fIRCOnly) {
+			nDelay *= 2;
+			if (nnodes >= 3)
+				nDelay *= 4;
+			if (!mapIRCAddresses.empty())
+				nDelay *= 100;
+		}
+
+		for (map<vector<unsigned char>, CAddress>::iterator mi =
+				mapAddresses.lower_bound(CAddress(ipC, 0).GetKey());
+				mi
+						!= mapAddresses.upper_bound(
+								CAddress(ipC | ~nIPCMask, 0xffff).GetKey());
+				++mi) {
+			const CAddress &addr = (*mi).second;
+			if (fIRCOnly && !mapIRCAddresses.count((*mi).first))
+				continue;
+
+			int64 nRandomizer = (addr.nLastFailed * addr.ip * 7777U) % 20000;
+			if (GetTime() - addr.nLastFailed > nDelay * nRandomizer / 10000)
+				mapIP[addr.ip].push_back(addr);
+		}
+	}
+	if (mapIP.empty())
+		return 0;
+
+	// Choose a random IP in the class C
+	map<unsigned int, vector<CAddress> >::iterator mi = mapIP.begin();
+	advance(mi, GetRand(mapIP.size()));
+
+	// Once we've chosen an IP, we'll try every given port before moving on
+	foreach(CAddress& addrConnect, (*mi).second) {
+		//
+		// Initiate outbound network connection
+		//
+		if (addrConnect.ip == addrLocalHost.ip || !addrConnect.IsIPv4()
+				|| btc_node_find(bctx, &addrConnect.ip, find_by_ip)/*FindNode(addrConnect.ip)*/)
+			continue;
+
+		hp_log(std::cout, "%s: connecting to '%s' => '%s' ...\n",
+				__FUNCTION__, ""/*item.first*/, addrConnect.ToString());
+
+		btc_node *node = btc_connect(bctx, addrConnect.GetSockAddr());
+		if (node) {
+			if (addrLocalHost.IsRoutable()) {
+				// Advertise our address
+				vector<CAddress> vAddrToSend;
+				vAddrToSend.push_back(addrLocalHost);
+//				pnode->PushMessage("addr", vAddrToSend);
+			}
+
+			// Get as many addresses as we can
+//			pnode->PushMessage("getaddr");
+
+			////// should the one on the receiving end do this too?
+			// Subscribe our local subscription list
+//			const unsigned int nHops = 0;
+//			for (unsigned int nChannel = 0;
+//					nChannel < pnodeLocalHost->vfSubscribe.size(); nChannel++)
+//				if (pnodeLocalHost->vfSubscribe[nChannel])
+//					pnode->PushMessage("subscribe", nChannel, nHops);
+//
+			break;
+		}
+	}
+
+	return 0;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 static int btc_ctx_loop(btc_node_ctx * bctx)
 {
@@ -3386,6 +3557,7 @@ int main(int argc, char ** argv)
 {
 	int rc = 0;
 #define quit_(code) do{ rc = code; goto exit_; }while(0)
+
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	//argc,argv
 	char const * loglevel;
@@ -3431,7 +3603,8 @@ int main(int argc, char ** argv)
 #else
 			1;
 #endif //#ifndef NDEBUG
-
+	// load default configure if exits
+	cfg("#load bitcoin.conf");
     /////////////////////////////////////////////////////////////////////////////////////////////
     /* parse argc/argv */
 	while (1) {
@@ -3482,14 +3655,20 @@ int main(int argc, char ** argv)
 		}
 #ifndef NDEBUG
 		else if(i == 11 ){
-			if(strstr(arg, ".libhp")) { cfg("#set libhp.runtest 1"); }
-			if(strstr(arg, ".btc")) { cfg("#set btc.runtest 1"); }
+			if(strstr(arg, ".libhp")) { hp_config_test("#set libhp.runtest 1"); }
+			if(strstr(arg, ".btc")) { hp_config_test("#set btc.runtest 1"); }
 		}
 #endif //#ifndef NDEBUG
 		else quit_(-5);
 	}
 
-    /////////////////////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////////////////////
+#ifndef NDEBUG
+	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
+	rc = test_btc_main(argc, argv);
+	if(rc != 0) quit_(-99);
+#endif //#ifndef NDEBUG
+   /////////////////////////////////////////////////////////////////////////////////////////////
 	loglevel  = cfg("loglevel");
 	if(loglevel[0])
 		hp_log_level = atoi(loglevel);
@@ -3501,12 +3680,6 @@ int main(int argc, char ** argv)
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
-
-#ifndef NDEBUG
-	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
-	rc = test_btc_main(argc, argv);
-	if(rc != 0) quit_(-99);
-#endif //#ifndef NDEBUG
 
 	//// debug print
     hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
@@ -3609,16 +3782,16 @@ exit_:
 //            OnExit();
 //            return false;
 //        }
-
+//
 //        if (!StartNode(strErrors))
 //            wxMessageBox(strErrors, "Bitcoin");
 //
 //        if (fGenerateBitcoins)
 //            if (_beginthread(ThreadBitcoinMiner, 0, NULL) == -1)
 //                hp_log(stdout, "Error: _beginthread(ThreadBitcoinMiner) failed\n");
-
-        //
-        // Tests
+//
+//        //
+//        // Tests
         //
 //        if (argc >= 2 && stricmp(argv[1], "/send") == 0)
 //        {
@@ -3653,3 +3826,6 @@ exit_:
 //    }
 
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+#include "../test/test_btc.cpp"
