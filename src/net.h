@@ -350,9 +350,6 @@ public:
 
     bool IsRoutable() const
     {
-#ifndef NDEBUG
-    	return true;
-#endif
         return !(GetByte(3) == 10 || (GetByte(3) == 192 && GetByte(2) == 168) || GetByte(3) == 127 || GetByte(3) == 0);
     }
 
@@ -385,6 +382,9 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+
 #include "hp/hp_io_t.h"
 #include "hp/sdsinc.h"
 #ifdef __cplusplus
@@ -397,23 +397,37 @@ extern "C" {
 }
 #endif
 
-typedef CMessageHeader btc_node_msghdr;
+/////////////////////////////////////////////////////////////////////////////////////////
+
+//union hp_iohdr {
+//	CMessageHeader btchdr;
+//};
+
+typedef struct btc_msg{
+	CDataStream    ds;
+} btc_msg;
+
+#define btc_msg_new(msg, alloc_, hdr_, data) do {           \
+	(msg) = new btc_msg;          \
+	(msg)->ds << CMessageHeader((hdr_), 0) << (data);       \
+    unsigned int nSize = (msg)->ds.size() - 0 - sizeof(CMessageHeader);                           \
+    memcpy((char*)&(msg)->ds[0] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize)); \
+}while(0)
 /////////////////////////////////////////////////////////////////////////////////////////
 
 typedef struct btc_node btc_node;
 typedef struct btc_node_ctx btc_node_ctx;
+typedef btc_node CNode;
 
 /* for BTC client */
 struct btc_node {
 	hp_io_t io;
-//	sds sid;
-//	time_t rping;		/* redis ping-pong */
-//	dict * qos;			/* topic=>QOS */
-//	list * outlist;     /* pendding out messages */
-//	listNode * l_msg; 	/* last message sent, from outlist */
-//	time_t l_time;      /* last send time */
-//	int l_mid;          /* BTC msgid */
+	CDataStream inds;	/* data in */
 	btc_node_ctx * bctx;
+
+    // flood
+	std::vector<CAddress> vAddrToSend;
+    std::set<CAddress> setAddrKnown;
 };
 
 struct btc_node_ctx {
@@ -421,8 +435,8 @@ struct btc_node_ctx {
 	hp_io_t 	listenio;
 	int rping_interval; /* redis ping-pong interval */
 	uint16_t mqid;		/* mqtt message_id */
-	list * peerlist;	/* peer node s list */
-	list * sentlist;	/* nodes sent */
+	list * inlist;		/* node coming */
+	list * outlist;		/* nodes sent out */
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -431,18 +445,26 @@ int btc_node_init(btc_node * node, btc_node_ctx * ioctx);
 void btc_node_uninit(btc_node * node);
 /////////////////////////////////////////////////////////////////////////////////////////
 
-int btc_node_ctx_init(btc_node_ctx * bctx
+int btc_init(btc_node_ctx * bctx
 		, hp_io_ctx * ioctx
 		, hp_sock_t fd, int tcp_keepalive
 		, int ping_interval);
-void btc_node_ctx_uninit(btc_node_ctx * ioctx);
+void btc_uninit(btc_node_ctx * ioctx);
 
 /////////////////////////////////////////////////////////////////////////////////////////
-
-btc_node * btc_connect(btc_node_ctx * bctx, struct sockaddr_in addr);
+/**
+ *  for nodes sent out
+ */
+btc_node * btc_out_connect(btc_node_ctx * bctx, struct sockaddr_in addr);
+btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr, void *key));
+#define btc_out_count(bctx) (listLength(bctx->outlist))
+int btc_out_send(btc_node * outnode, btc_msg * msg, hp_io_free_t free);
 /////////////////////////////////////////////////////////////////////////////////////////
-#define btc_peer_node_count(bctx) (listLength(bctx->peerlist))
-btc_node * btc_node_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr, void *key));
+
+/**
+ * for nodes coming
+ */
+#define btc_in_count(bctx) (listLength(bctx->inlist))
 /////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);

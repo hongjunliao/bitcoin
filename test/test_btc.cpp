@@ -42,8 +42,10 @@ int test_btc_config_main(int argc, char ** argv);
 int test_btc_main(int argc, char ** argv)
 {
 	int rc;
-	cfg("#load bitcoin.conf");
-	hp_log(stdout, "%s...\n", __FUNCTION__);
+	hp_log(std::cout, "%s...\n", __FUNCTION__);
+	{
+		hp_log(std::cout, "%s\n", std::string("hello"));
+	}
 	{
 		if(cfgi("libhp.runtest")){
 			rc = libhp_all_tests_main(argc, argv); assert(rc == 0);
@@ -54,15 +56,20 @@ int test_btc_main(int argc, char ** argv)
 	{
 		rc = test_btc_config_main(argc, argv); assert(rc == 0);
 	}
+	{
+		CDataStream ds; CAddress addr[4] = { CAddress{"137.23.45.67:8009"} };
+		ds << addr[0];
+		ds >> addr[1];
+	}
 	//base58.h
 	{
 		char buf[] = "1iIl0O";
 		string s1 = EncodeBase58((unsigned char *)buf, (unsigned char *)(buf + sizeof(buf)));
-		hp_log(stdout, "%s:s/EncodeBase58='%s'/'%s'\n", __FUNCTION__,buf, s1.c_str());
+		hp_log(std::cout, "%s:s/EncodeBase58='%s'/'%s'\n", __FUNCTION__,buf, s1.c_str());
 	}
 	{
 	    string str = strprintf("%I64d.%0I64d.%0xI64d.%08I64d.%8I64d", 22222, 22222, 22222, 22222, 22222);
-	    hp_log(stdout, "%s: str='%s'\n", __FUNCTION__, str.c_str());
+	    hp_log(std::cout, "%s: str='%s'\n", __FUNCTION__, str.c_str());
 	}
 	{
 		CBigNum a = 1, b = 2, c = a + b, d, e;
@@ -116,7 +123,7 @@ int test_btc_main(int argc, char ** argv)
 	}
 	assert(cfgi("#unload") == 0);
 done:
-	hp_log(stdout, "%s done\n", __FUNCTION__);
+	hp_log(std::cout, "%s done\n", __FUNCTION__);
 	return 0;
 }
 

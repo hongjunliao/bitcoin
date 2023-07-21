@@ -89,7 +89,7 @@ static char const * btc_config_load(char const * id)
 	else if(strncmp(id, "#load", n = strlen("#load")) == 0 && strlen(id) >= (n + 2)){
 		char const * f = id + n + 1;
 		if (ini_parse(f, inih_handler, s_config) != 0) {
-			hp_log(stderr, "%s: ini_parse failed for  '%s'\n", __FUNCTION__, f);
+			hp_log(std::cerr, "%s: ini_parse failed for  '%s'\n", __FUNCTION__, f);
 			return "-1";
 		}
 		return "0";

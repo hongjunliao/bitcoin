@@ -42,96 +42,98 @@ using std::set;
 
 //CCriticalSection cs_main;
 
-map<uint256, CTransaction> mapTransactions;
+static map<uint256, CTransaction> mapTransactions;
 //CCriticalSection cs_mapTransactions;
-unsigned int nTransactionsUpdated = 0;
-map<COutPoint, CInPoint> mapNextTx;
+static unsigned int nTransactionsUpdated = 0;
+static map<COutPoint, CInPoint> mapNextTx;
 
-map<uint256, CBlockIndex*> mapBlockIndex;
-const uint256 hashGenesisBlock("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
-CBlockIndex* pindexGenesisBlock = NULL;
-int nBestHeight = -1;
-uint256 hashBestChain = 0;
-CBlockIndex* pindexBest = NULL;
+static map<uint256, CBlockIndex*> mapBlockIndex;
+static const uint256 hashGenesisBlock("0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
+static CBlockIndex* pindexGenesisBlock = NULL;
+static int nBestHeight = -1;
+static uint256 hashBestChain = 0;
+static CBlockIndex* pindexBest = NULL;
 
-map<uint256, CBlock*> mapOrphanBlocks;
-multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
+static map<uint256, CBlock*> mapOrphanBlocks;
+static multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
 
-map<uint256, CDataStream*> mapOrphanTransactions;
-multimap<uint256, CDataStream*> mapOrphanTransactionsByPrev;
+static map<uint256, CDataStream*> mapOrphanTransactions;
+static multimap<uint256, CDataStream*> mapOrphanTransactionsByPrev;
 
-map<uint256, CWalletTx> mapWallet;
-vector<pair<uint256, bool> > vWalletUpdated;
+static map<uint256, CWalletTx> mapWallet;
+static vector<pair<uint256, bool> > vWalletUpdated;
 //CCriticalSection cs_mapWallet;
 
-map<vector<unsigned char>, CPrivKey> mapKeys;
-map<uint160, vector<unsigned char> > mapPubKeys;
+static map<vector<unsigned char>, CPrivKey> mapKeys;
+static map<uint160, vector<unsigned char> > mapPubKeys;
 //CCriticalSection cs_mapKeys;
-CKey keyUser;
+static CKey keyUser;
 
 string strSetDataDir;
-int nDropMessagesTest = 0;
+static int nDropMessagesTest = 0;
 
 // Settings
-int fGenerateBitcoins;
-int64 nTransactionFee = 0;
-CAddress addrIncoming;
+static int fGenerateBitcoins;
+static int64 nTransactionFee = 0;
+static CAddress addrIncoming;
 
-map<string, string> mapAddressBook;
+static map<string, string> mapAddressBook;
 
-bool fDebug = false;
+static bool fDebug = false;
 static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 /////////////////////////////////////////////////////////////////////////////////////////////
 //
 // net.cpp
 //
 bool fClient = false;
-uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
-CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
+static uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
+static CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
 //CNode nodeLocalHost(INVALID_SOCKET, CAddress("127.0.0.1", nLocalServices));
 //CNode* pnodeLocalHost = &nodeLocalHost;
-bool fShutdown = false;
-std::array<bool, 10> vfThreadRunning;
+static bool fShutdown = false;
+static std::array<bool, 10> vfThreadRunning;
 //vector<CNode*> vNodes;
-map<vector<unsigned char>, CAddress> mapAddresses;
-map<CInv, CDataStream> mapRelay;
+static map<vector<unsigned char>, CAddress> mapAddresses;
+static map<CInv, CDataStream> mapRelay;
 std::deque<pair<int64, CInv> > vRelayExpiration;
-map<CInv, int64> mapAlreadyAskedFor;
+static map<CInv, int64> mapAlreadyAskedFor;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 //irc.cpp
-map<vector<unsigned char>, CAddress> mapIRCAddresses;
+static map<vector<unsigned char>, CAddress> mapIRCAddresses;
 /////////////////////////////////////////////////////////////////////////////////////////////
-CBlockIndex* InsertBlockIndex(uint256 hash);
-string GetAppDir();
-bool CheckDiskSpace(int64 nAdditionalBytes=0);
-FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
-FILE* AppendBlockFile(unsigned int& nFileRet);
-bool AddKey(const CKey& key);
-vector<unsigned char> GenerateNewKey();
-bool AddToWallet(const CWalletTx& wtxIn);
-void ReacceptWalletTransactions();
-void RelayWalletTransactions();
-bool LoadBlockIndex(bool fAllowNew=true);
-void PrintBlockTree();
-bool BitcoinMiner();
+static CBlockIndex* InsertBlockIndex(uint256 hash);
+static string GetAppDir();
+static bool CheckDiskSpace(int64 nAdditionalBytes=0);
+static FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
+static FILE* AppendBlockFile(unsigned int& nFileRet);
+static bool AddKey(const CKey& key);
+static vector<unsigned char> GenerateNewKey();
+static bool AddToWallet(const CWalletTx& wtxIn);
+static void ReacceptWalletTransactions();
+static void RelayWalletTransactions();
+static bool LoadBlockIndex(bool fAllowNew=true);
+static void PrintBlockTree();
+static bool BitcoinMiner();
 //bool ProcessMessages(CNode* pfrom);
-//bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv);
+
 //bool SendMessages(CNode* pto);
-int64 GetBalance();
-bool CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& txNew, int64& nFeeRequiredRet);
-bool CommitTransactionSpent(const CWalletTx& wtxNew);
-bool SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew);
+static int64 GetBalance();
+static bool CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& txNew, int64& nFeeRequiredRet);
+static bool CommitTransactionSpent(const CWalletTx& wtxNew);
+static bool SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew);
 
 //////////////////////////////////////////////////////////////////////////////
-bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
-bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nIn, int nHashType=0,
+static bool CheckSig(vector<unsigned char> vchSig, vector<unsigned char> vchPubKey, CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
+static bool EvalScript(const CScript& script, const CTransaction& txTo, unsigned int nIn, int nHashType=0,
                 vector<vector<unsigned char> >* pvStackRet=NULL);
-uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
+static uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
 bool IsMine(const CScript& scriptPubKey);
 bool SignSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL, CScript scriptPrereq=CScript());
 bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, int nHashType=0);
 string DateTimeStr(int64 nTime){ sds s = hp_timestr(nTime, 0); string str(s); sdsfree(s); return str; }
+/////////////////////////////////////////////////////////////////////////////////////////////
+static bool AddAddress(CAddrDB& addrdb, const CAddress& addr);
 /////////////////////////////////////////////////////////////////////////////////////////////
 //net.cpp
 CAddress addrProxy;
@@ -199,7 +201,7 @@ bool AddToWallet(const CWalletTx& wtxIn)
             wtx.nTimeReceived = GetAdjustedTime();
 
         //// debug print
-        hp_log(stdout, "AddToWallet %s  %s\n", wtxIn.GetHash().ToString().substr(0,6).c_str(), fInsertedNew ? "new" : "update");
+        hp_log(std::cout, "AddToWallet %s  %s\n", wtxIn.GetHash().ToString().substr(0,6).c_str(), fInsertedNew ? "new" : "update");
 
         if (!fInsertedNew)
         {
@@ -411,7 +413,7 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
         {
             vMerkleBranch.clear();
             nIndex = -1;
-            hp_log(stdout, "ERROR: SetMerkleBranch() : couldn't find tx in block\n");
+            hp_log(std::cout, "ERROR: SetMerkleBranch() : couldn't find tx in block\n");
             return 0;
         }
 
@@ -470,7 +472,7 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
                 }
                 else
                 {
-                    hp_log(stdout, "ERROR: AddSupportingTransactions() : unsupported transaction\n");
+                    hp_log(std::cout, "ERROR: AddSupportingTransactions() : unsupported transaction\n");
                     continue;
                 }
 
@@ -579,7 +581,7 @@ bool CTransaction::AcceptTransaction(CTxDB& txdb, bool fCheckInputs, bool* pfMis
     {
         if (ptxOld)
         {
-            hp_log(stdout, "mapTransaction.erase(%s) replacing with new version\n", ptxOld->GetHash().ToString().c_str());
+            hp_log(std::cout, "mapTransaction.erase(%s) replacing with new version\n", ptxOld->GetHash().ToString().c_str());
             mapTransactions.erase(ptxOld->GetHash());
         }
         AddToMemoryPool();
@@ -590,7 +592,7 @@ bool CTransaction::AcceptTransaction(CTxDB& txdb, bool fCheckInputs, bool* pfMis
     if (ptxOld)
         EraseFromWallet(ptxOld->GetHash());
 
-    hp_log(stdout, "AcceptTransaction(): accepted %s\n", hash.ToString().substr(0,6).c_str());
+    hp_log(std::cout, "AcceptTransaction(): accepted %s\n", hash.ToString().substr(0,6).c_str());
     return true;
 }
 
@@ -709,7 +711,7 @@ void CWalletTx::RelayWalletTransaction(CTxDB& txdb)
         uint256 hash = GetHash();
         if (!txdb.ContainsTx(hash))
         {
-            hp_log(stdout, "Relaying wtx %s\n", hash.ToString().substr(0,6).c_str());
+            hp_log(std::cout, "Relaying wtx %s\n", hash.ToString().substr(0,6).c_str());
 //            RelayMessage(CInv(MSG_TX, hash), (CTransaction)*this);
         }
     }
@@ -726,7 +728,7 @@ void RelayWalletTransactions()
     nLastTime = GetTime();
 
     // Rebroadcast any of our txes that aren't in a block yet
-    hp_log(stdout, "RelayWalletTransactions()\n");
+    hp_log(std::cout, "RelayWalletTransactions()\n");
     CTxDB txdb("r");
     //CRITICAL_BLOCK(cs_mapWallet)
     {
@@ -841,7 +843,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
 
     // Limit adjustment step
     unsigned int nActualTimespan = pindexLast->nTime - pindexFirst->nTime;
-    hp_log(stdout, "  nActualTimespan = %d  before bounds\n", nActualTimespan);
+    hp_log(std::cout, "  nActualTimespan = %d  before bounds\n", nActualTimespan);
     if (nActualTimespan < nTargetTimespan/4)
         nActualTimespan = nTargetTimespan/4;
     if (nActualTimespan > nTargetTimespan*4)
@@ -857,10 +859,10 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
         bnNew = bnProofOfWorkLimit;
 
     /// debug print
-    hp_log(stdout, "\n\n\nGetNextWorkRequired RETARGET *****\n");
-    hp_log(stdout, "nTargetTimespan = %d    nActualTimespan = %d\n", nTargetTimespan, nActualTimespan);
-    hp_log(stdout, "Before: %08x  %s\n", pindexLast->nBits, CBigNum().SetCompact(pindexLast->nBits).getuint256().ToString().c_str());
-    hp_log(stdout, "After:  %08x  %s\n", bnNew.GetCompact(), bnNew.getuint256().ToString().c_str());
+    hp_log(std::cout, "\n\n\nGetNextWorkRequired RETARGET *****\n");
+    hp_log(std::cout, "nTargetTimespan = %d    nActualTimespan = %d\n", nTargetTimespan, nActualTimespan);
+    hp_log(std::cout, "Before: %08x  %s\n", pindexLast->nBits, CBigNum().SetCompact(pindexLast->nBits).getuint256().ToString().c_str());
+    hp_log(std::cout, "After:  %08x  %s\n", bnNew.GetCompact(), bnNew.getuint256().ToString().c_str());
 
     return bnNew.GetCompact();
 }
@@ -1103,7 +1105,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
 bool Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
 {
-    hp_log(stdout, "*** REORGANIZE ***\n");
+    hp_log(std::cout, "*** REORGANIZE ***\n");
 
     // Find the fork
     CBlockIndex* pfork = pindexBest;
@@ -1264,7 +1266,7 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
         pindexBest = pindexNew;
         nBestHeight = pindexBest->nHeight;
         nTransactionsUpdated++;
-        hp_log(stdout, "AddToBlockIndex: new best=%s  height=%d\n", hashBestChain.ToString().substr(0,14).c_str(), nBestHeight);
+        hp_log(std::cout, "AddToBlockIndex: new best=%s  height=%d\n", hashBestChain.ToString().substr(0,14).c_str(), nBestHeight);
     }
 
     txdb.TxnCommit();
@@ -1385,7 +1387,7 @@ bool CBlock::AcceptBlock()
 //    // If don't already have its previous block, shunt it off to holding area until we get it
 //    if (!mapBlockIndex.count(pblock->hashPrevBlock))
 //    {
-//        hp_log(stdout, "ProcessBlock: ORPHAN BLOCK, prev=%s\n", pblock->hashPrevBlock.ToString().substr(0,14).c_str());
+//        hp_log(std::cout, "ProcessBlock: ORPHAN BLOCK, prev=%s\n", pblock->hashPrevBlock.ToString().substr(0,14).c_str());
 //        mapOrphanBlocks.insert(make_pair(hash, pblock));
 //        mapOrphanBlocksByPrev.insert(make_pair(pblock->hashPrevBlock, pblock));
 //
@@ -1422,7 +1424,7 @@ bool CBlock::AcceptBlock()
 //        mapOrphanBlocksByPrev.erase(hashPrev);
 //    }
 //
-//    hp_log(stdout, "ProcessBlock: ACCEPTED\n");
+//    hp_log(std::cout, "ProcessBlock: ACCEPTED\n");
 //    return true;
 //}
 //
@@ -1514,7 +1516,7 @@ bool CheckDiskSpace(int64 nAdditionalBytes)
 //            (PULARGE_INTEGER)&nTotalNumberOfBytes,
 //            (PULARGE_INTEGER)&nTotalNumberOfFreeBytes))
 //    {
-//        hp_log(stdout, "ERROR: GetDiskFreeSpaceEx() failed\n");
+//        hp_log(std::cout, "ERROR: GetDiskFreeSpaceEx() failed\n");
 //        return true;
 //    }
 //
@@ -1638,7 +1640,7 @@ bool LoadBlockIndex(bool fAllowNew)
         return error("CTxDB::LoadBlockIndex() : blockindex for hashBestChain not found\n");
     pindexBest = mapBlockIndex[hashBestChain];
     nBestHeight = pindexBest->nHeight;
-    hp_log(stdout, "LoadBlockIndex(): hashBestChain=%s  height=%d\n", hashBestChain.ToString().substr(0,14).c_str(), nBestHeight);
+    hp_log(std::cout, "LoadBlockIndex(): hashBestChain=%s  height=%d\n", hashBestChain.ToString().substr(0,14).c_str(), nBestHeight);
 
     txdb.Close();
 
@@ -1684,9 +1686,9 @@ bool LoadBlockIndex(bool fAllowNew)
         block.nNonce   = 2083236893;
 
             //// debug print, delete this later
-            hp_log(stdout, "%s: %s\n", __FUNCTION__, block.GetHash().ToString().c_str());
-            hp_log(stdout, "%s: %s\n", __FUNCTION__, block.hashMerkleRoot.ToString().c_str());
-            hp_log(stdout, "%s: %s\n", __FUNCTION__, hashGenesisBlock.ToString().c_str());
+            hp_log(std::cout, "%s: %s\n", __FUNCTION__, block.GetHash().ToString().c_str());
+            hp_log(std::cout, "%s: %s\n", __FUNCTION__, block.hashMerkleRoot.ToString().c_str());
+            hp_log(std::cout, "%s: %s\n", __FUNCTION__, hashGenesisBlock.ToString().c_str());
             txNew.vout[0].scriptPubKey.print();
             block.print();
 //            assert(block.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
@@ -1762,11 +1764,11 @@ bool LoadWallet()
                 ssValue >> wtx;
 
                 if (wtx.GetHash() != hash)
-                    hp_log(stdout, "Error in wallet.dat, hash mismatch\n");
+                    hp_log(std::cout, "Error in wallet.dat, hash mismatch\n");
 
                 //// debug print
-                //hp_log(stdout, "LoadWallet  %s\n", wtx.GetHash().ToString().c_str());
-                //hp_log(stdout, " %12I64d  %s  %s  %s\n",
+                //hp_log(std::cout, "LoadWallet  %s\n", wtx.GetHash().ToString().c_str());
+                //hp_log(std::cout, " %12I64d  %s  %s  %s\n",
                 //    wtx.vout[0].nValue,
                 //    DateTimeStr(wtx.nTime).c_str(),
                 //    wtx.hashBlock.ToString().substr(0,14).c_str(),
@@ -1849,25 +1851,25 @@ void PrintBlockTree()
         if (nCol > nPrevCol)
         {
             for (int i = 0; i < nCol-1; i++)
-                hp_log(stdout, "| ");
-            hp_log(stdout, "|\\\n");
+                hp_log(std::cout, "| ");
+            hp_log(std::cout, "|\\\n");
         }
         else if (nCol < nPrevCol)
         {
             for (int i = 0; i < nCol; i++)
-                hp_log(stdout, "| ");
-            hp_log(stdout, "|\n");
+                hp_log(std::cout, "| ");
+            hp_log(std::cout, "|\n");
         }
         nPrevCol = nCol;
 
         // print columns
         for (int i = 0; i < nCol; i++)
-            hp_log(stdout, "| ");
+            hp_log(std::cout, "| ");
 
         // print item
         CBlock block;
         block.ReadFromDisk(pindex, true);
-        hp_log(stdout, "%d (%u,%u) %s  %s  tx %d",
+        hp_log(std::cout, "%d (%u,%u) %s  %s  tx %d",
             pindex->nHeight,
             pindex->nFile,
             pindex->nBlockPos,
@@ -1880,7 +1882,7 @@ void PrintBlockTree()
             if (mapWallet.count(block.vtx[0].GetHash()))
             {
                 CWalletTx& wtx = mapWallet[block.vtx[0].GetHash()];
-                hp_log(stdout, "    mine:  %d  %d  %d", wtx.GetDepthInMainChain(), wtx.GetBlocksToMaturity(), wtx.GetCredit());
+                hp_log(std::cout, "    mine:  %d  %d  %d", wtx.GetDepthInMainChain(), wtx.GetBlocksToMaturity(), wtx.GetCredit());
             }
         }
         printf("\n");
@@ -1942,7 +1944,7 @@ void PrintBlockTree()
 //    CDataStream& vRecv = pfrom->vRecv;
 //    if (vRecv.empty())
 //        return true;
-//    hp_log(stdout, "ProcessMessages(%d bytes)\n", vRecv.size());
+//    hp_log(std::cout, "ProcessMessages(%d bytes)\n", vRecv.size());
 //
 //    //
 //    // Message format
@@ -1960,13 +1962,13 @@ void PrintBlockTree()
 //        {
 //            if (vRecv.size() > sizeof(CMessageHeader))
 //            {
-//                hp_log(stdout, "\n\nPROCESSMESSAGE MESSAGESTART NOT FOUND\n\n");
+//                hp_log(std::cout, "\n\nPROCESSMESSAGE MESSAGESTART NOT FOUND\n\n");
 //                vRecv.erase(vRecv.begin(), vRecv.end() - sizeof(CMessageHeader));
 //            }
 //            break;
 //        }
 //        if (pstart - vRecv.begin() > 0)
-//            hp_log(stdout, "\n\nPROCESSMESSAGE SKIPPED %d BYTES\n\n", pstart - vRecv.begin());
+//            hp_log(std::cout, "\n\nPROCESSMESSAGE SKIPPED %d BYTES\n\n", pstart - vRecv.begin());
 //        vRecv.erase(vRecv.begin(), pstart);
 //
 //        // Read header
@@ -1974,7 +1976,7 @@ void PrintBlockTree()
 //        vRecv >> hdr;
 //        if (!hdr.IsValid())
 //        {
-//            hp_log(stdout, "\n\nPROCESSMESSAGE: ERRORS IN HEADER %s\n\n\n", hdr.GetCommand().c_str());
+//            hp_log(std::cout, "\n\nPROCESSMESSAGE: ERRORS IN HEADER %s\n\n\n", hdr.GetCommand().c_str());
 //            continue;
 //        }
 //        string strCommand = hdr.GetCommand();
@@ -1985,7 +1987,7 @@ void PrintBlockTree()
 //        {
 //            // Rewind and wait for rest of message
 //            ///// need a mechanism to give up waiting for overlong message size error
-//            hp_log(stdout, "MESSAGE-BREAK\n");
+//            hp_log(std::cout, "MESSAGE-BREAK\n");
 //            vRecv.insert(vRecv.begin(), BEGIN(hdr), END(hdr));
 //            sleep_micro(100);
 //            break;
@@ -2006,7 +2008,7 @@ void PrintBlockTree()
 //        }
 //        CATCH_PRINT_EXCEPTION("ProcessMessage()")
 //        if (!fRet)
-//            hp_log(stdout, "ProcessMessage(%s, %d bytes) from %s to %s FAILED\n", strCommand.c_str(), nMessageSize, pfrom->addr.ToString().c_str(), addrLocalHost.ToString().c_str());
+//            hp_log(std::cout, "ProcessMessage(%s, %d bytes) from %s to %s FAILED\n", strCommand.c_str(), nMessageSize, pfrom->addr.ToString().c_str(), addrLocalHost.ToString().c_str());
 //    }
 //
 //    vRecv.Compact();
@@ -2016,23 +2018,21 @@ void PrintBlockTree()
 //
 //
 //
-//bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
-//{
-//    static map<unsigned int, vector<unsigned char> > mapReuseKey;
-//    hp_log(stdout, "received: %-12s (%d bytes)  ", strCommand.c_str(), vRecv.size());
-//    for (int i = 0; i < std::min(vRecv.size(), (unsigned int)20); i++)
-//        hp_log(stdout, "%02x ", vRecv[i] & 0xff);
-//    hp_log(stdout, "\n");
-//    if (nDropMessagesTest > 0 && GetRand(nDropMessagesTest) == 0)
-//    {
-//        hp_log(stdout, "dropmessages DROPPING RECV MESSAGE\n");
-//        return true;
-//    }
-//
-//
-//
-//    if (strCommand == "version")
-//    {
+bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
+{
+    static map<unsigned int, vector<unsigned char> > mapReuseKey;
+    printf("received: %-12s (%d bytes)  ", strCommand.c_str(), vRecv.size());
+    for (int i = 0; i < std::min((int)vRecv.size(), 20); i++)
+        printf("%02x ", vRecv[i] & 0xff);
+    printf("\n");
+    if (nDropMessagesTest > 0 && GetRand(nDropMessagesTest) == 0)
+    {
+        printf("dropmessages DROPPING RECV MESSAGE\n");
+        return true;
+    }
+
+    if (strCommand == "version")
+    {
 //        // Can only do this once
 //        if (pfrom->nVersion != 0)
 //            return false;
@@ -2043,8 +2043,8 @@ void PrintBlockTree()
 //        if (pfrom->nVersion == 0)
 //            return false;
 //
-//        pfrom->vSend.SetVersion(std::min(pfrom->nVersion, VERSION));
-//        pfrom->vRecv.SetVersion(std::min(pfrom->nVersion, VERSION));
+//        pfrom->vSend.SetVersion(min(pfrom->nVersion, VERSION));
+//        pfrom->vRecv.SetVersion(min(pfrom->nVersion, VERSION));
 //
 //        pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
 //        if (pfrom->fClient)
@@ -2063,318 +2063,320 @@ void PrintBlockTree()
 //            pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), uint256(0));
 //        }
 //
-//        hp_log(stdout, "version message: %s has version %d, addrMe=%s\n", pfrom->addr.ToString().c_str(), pfrom->nVersion, addrMe.ToString().c_str());
+//        printf("version message: %s has version %d, addrMe=%s\n", pfrom->addr.ToString().c_str(), pfrom->nVersion, addrMe.ToString().c_str());
 //    }
-//
 //
 //    else if (pfrom->nVersion == 0)
 //    {
 //        // Must have a version message before anything else
 //        return false;
-//    }
-//
-//
-//    else if (strCommand == "addr")
-//    {
-//        vector<CAddress> vAddr;
-//        vRecv >> vAddr;
-//
-//        // Store the new addresses
-//        CAddrDB addrdb;
-//        foreach(const CAddress& addr, vAddr)
-//        {
-//            if (fShutdown)
-//                return true;
-//            if (AddAddress(addrdb, addr))
-//            {
-//                // Put on lists to send to other nodes
-//                pfrom->setAddrKnown.insert(addr);
-//                //CRITICAL_BLOCK(cs_vNodes)
-//                    foreach(CNode* pnode, vNodes)
-//                        if (!pnode->setAddrKnown.count(addr))
-//                            pnode->vAddrToSend.push_back(addr);
-//            }
-//        }
-//    }
-//
-//
-//    else if (strCommand == "inv")
-//    {
-//        vector<CInv> vInv;
-//        vRecv >> vInv;
-//
-//        CTxDB txdb("r");
-//        foreach(const CInv& inv, vInv)
-//        {
-//            if (fShutdown)
-//                return true;
-//            pfrom->AddInventoryKnown(inv);
-//
-//            bool fAlreadyHave = AlreadyHave(txdb, inv);
-//            hp_log(stdout, "  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
-//
-//            if (!fAlreadyHave)
-//                pfrom->AskFor(inv);
-//            else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
-//                pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
-//        }
-//    }
-//
-//
-//    else if (strCommand == "getdata")
-//    {
-//        vector<CInv> vInv;
-//        vRecv >> vInv;
-//
-//        foreach(const CInv& inv, vInv)
-//        {
-//            if (fShutdown)
-//                return true;
-//            hp_log(stdout, "received getdata for: %s\n", inv.ToString().c_str());
-//
-//            if (inv.type == MSG_BLOCK)
-//            {
-//                // Send block from disk
-//                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
-//                if (mi != mapBlockIndex.end())
-//                {
-//                    //// could optimize this to send header straight from blockindex for client
-//                    CBlock block;
-//                    block.ReadFromDisk((*mi).second, !pfrom->fClient);
-//                    pfrom->PushMessage("block", block);
-//                }
-//            }
-//            else if (inv.IsKnownType())
-//            {
-//                // Send stream from relay memory
-//                //CRITICAL_BLOCK(cs_mapRelay)
-//                {
-//                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
-//                    if (mi != mapRelay.end())
-//                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
-//                }
-//            }
-//        }
-//    }
-//
-//
-//    else if (strCommand == "getblocks")
-//    {
-//        CBlockLocator locator;
-//        uint256 hashStop;
-//        vRecv >> locator >> hashStop;
-//
-//        // Find the first block the caller has in the main chain
-//        CBlockIndex* pindex = locator.GetBlockIndex();
-//
-//        // Send the rest of the chain
-//        if (pindex)
-//            pindex = pindex->pnext;
-//        hp_log(stdout, "getblocks %d to %s\n", (pindex ? pindex->nHeight : -1), hashStop.ToString().substr(0,14).c_str());
-//        for (; pindex; pindex = pindex->pnext)
-//        {
-//            if (pindex->GetBlockHash() == hashStop)
-//            {
-//                hp_log(stdout, "  getblocks stopping at %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString().substr(0,14).c_str());
-//                break;
-//            }
-//
-//            // Bypass setInventoryKnown in case an inventory message got lost
-//            //CRITICAL_BLOCK(pfrom->cs_inventory)
-//            {
-//                CInv inv(MSG_BLOCK, pindex->GetBlockHash());
-//                // returns true if wasn't already contained in the set
-//                if (pfrom->setInventoryKnown2.insert(inv).second)
-//                {
-//                    pfrom->setInventoryKnown.erase(inv);
-//                    pfrom->vInventoryToSend.push_back(inv);
-//                }
-//            }
-//        }
-//    }
-//
-//
-//    else if (strCommand == "tx")
-//    {
-//        vector<uint256> vWorkQueue;
-//        CDataStream vMsg(vRecv);
-//        CTransaction tx;
-//        vRecv >> tx;
-//
-//        CInv inv(MSG_TX, tx.GetHash());
-//        pfrom->AddInventoryKnown(inv);
-//
-//        bool fMissingInputs = false;
-//        if (tx.AcceptTransaction(true, &fMissingInputs))
-//        {
-//            AddToWalletIfMine(tx, NULL);
-//            RelayMessage(inv, vMsg);
-//            mapAlreadyAskedFor.erase(inv);
-//            vWorkQueue.push_back(inv.hash);
-//
-//            // Recursively process any orphan transactions that depended on this one
-//            for (int i = 0; i < vWorkQueue.size(); i++)
-//            {
-//                uint256 hashPrev = vWorkQueue[i];
-//                for (multimap<uint256, CDataStream*>::iterator mi = mapOrphanTransactionsByPrev.lower_bound(hashPrev);
-//                     mi != mapOrphanTransactionsByPrev.upper_bound(hashPrev);
-//                     ++mi)
-//                {
-//                    const CDataStream& vMsg = *((*mi).second);
-//                    CTransaction tx;
-//                    CDataStream(vMsg) >> tx;
-//                    CInv inv(MSG_TX, tx.GetHash());
-//
-//                    if (tx.AcceptTransaction(true))
-//                    {
-//                        hp_log(stdout, "   accepted orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-//                        AddToWalletIfMine(tx, NULL);
-//                        RelayMessage(inv, vMsg);
-//                        mapAlreadyAskedFor.erase(inv);
-//                        vWorkQueue.push_back(inv.hash);
-//                    }
-//                }
-//            }
-//
-//            foreach(uint256 hash, vWorkQueue)
-//                EraseOrphanTx(hash);
-//        }
-//        else if (fMissingInputs)
-//        {
-//            hp_log(stdout, "storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-//            AddOrphanTx(vMsg);
-//        }
-//    }
-//
-//
-//    else if (strCommand == "review")
-//    {
-//        CDataStream vMsg(vRecv);
-//        CReview review;
-//        vRecv >> review;
-//
-//        CInv inv(MSG_REVIEW, review.GetHash());
-//        pfrom->AddInventoryKnown(inv);
-//
-//        if (review.AcceptReview())
-//        {
-//            // Relay the original message as-is in case it's a higher version than we know how to parse
-//            RelayMessage(inv, vMsg);
-//            mapAlreadyAskedFor.erase(inv);
-//        }
-//    }
-//
-//
-//    else if (strCommand == "block")
-//    {
-//        auto_ptr<CBlock> pblock(new CBlock);
-//        vRecv >> *pblock;
-//
-//        //// debug print
-//        hp_log(stdout, "received block:\n"); pblock->print();
-//
-//        CInv inv(MSG_BLOCK, pblock->GetHash());
-//        pfrom->AddInventoryKnown(inv);
-//
-//        if (ProcessBlock(pfrom, pblock.release()))
-//            mapAlreadyAskedFor.erase(inv);
-//    }
-//
-//
-//    else if (strCommand == "getaddr")
-//    {
-//        pfrom->vAddrToSend.clear();
-//        int64 nSince = GetAdjustedTime() - 5 * 24 * 60 * 60; // in the last 5 days
-//        //CRITICAL_BLOCK(cs_mapAddresses)
-//        {
-//            unsigned int nSize = mapAddresses.size();
-//            foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
-//            {
-//                if (fShutdown)
-//                    return true;
-//                const CAddress& addr = item.second;
-//                //// will need this if we lose IRC
-//                //if (addr.nTime > nSince || (rand() % nSize) < 500)
-//                if (addr.nTime > nSince)
-//                    pfrom->vAddrToSend.push_back(addr);
-//            }
-//        }
-//    }
-//
-//
-//    else if (strCommand == "checkorder")
-//    {
-//        uint256 hashReply;
-//        CWalletTx order;
-//        vRecv >> hashReply >> order;
-//
-//        /// we have a chance to check the order here
-//
-//        // Keep giving the same key to the same ip until they use it
-//        if (!mapReuseKey.count(pfrom->addr.ip))
-//            mapReuseKey[pfrom->addr.ip] = GenerateNewKey();
-//
-//        // Send back approval of order and pubkey to use
-//        CScript scriptPubKey;
-//        scriptPubKey << mapReuseKey[pfrom->addr.ip] << OP_CHECKSIG;
-//        pfrom->PushMessage("reply", hashReply, (int)0, scriptPubKey);
-//    }
-//
-//
-//    else if (strCommand == "submitorder")
-//    {
-//        uint256 hashReply;
-//        CWalletTx wtxNew;
-//        vRecv >> hashReply >> wtxNew;
-//
-//        // Broadcast
-//        if (!wtxNew.AcceptWalletTransaction())
-//        {
-//            pfrom->PushMessage("reply", hashReply, (int)1);
-//            return error("submitorder AcceptWalletTransaction() failed, returning error 1");
-//        }
-//        wtxNew.fTimeReceivedIsTxTime = true;
-//        AddToWallet(wtxNew);
-//        wtxNew.RelayWalletTransaction();
-//        mapReuseKey.erase(pfrom->addr.ip);
-//
-//        // Send back confirmation
-//        pfrom->PushMessage("reply", hashReply, (int)0);
-//    }
-//
-//
-//    else if (strCommand == "reply")
-//    {
-//        uint256 hashReply;
-//        vRecv >> hashReply;
-//
-//        CRequestTracker tracker;
-//        //CRITICAL_BLOCK(pfrom->cs_mapRequests)
-//        {
-//            map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
-//            if (mi != pfrom->mapRequests.end())
-//            {
-//                tracker = (*mi).second;
-//                pfrom->mapRequests.erase(mi);
-//            }
-//        }
-//        if (!tracker.IsNull())
-//            tracker.fn(tracker.param1, vRecv);
-//    }
-//
-//
-//    else
-//    {
-//        // Ignore unknown commands for extensibility
-//        hp_log(stdout, "ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
-//    }
-//
-//
-//    if (!vRecv.empty())
-//        hp_log(stdout, "ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
-//
-//    return true;
-//}
+    }
+
+
+    else if (strCommand == "addr")
+    {
+        vector<CAddress> vAddr;
+        vRecv >> vAddr;
+
+        // Store the new addresses
+        CAddrDB addrdb;
+        foreach(const CAddress& addr, vAddr)
+        {
+			if (AddAddress(addrdb, addr)) {
+				// Put on lists to send to other nodes
+				pfrom->setAddrKnown.insert(addr);
+
+				listIter *iter = listGetIterator(pfrom->bctx->inlist, 0);
+				for(listNode * listnode = 0; (listnode = listNext(iter));){
+					CNode * pnode = (CNode *)listNodeValue(listnode);
+					assert(pnode);
+					if (!pnode->setAddrKnown.count(addr))
+						pnode->vAddrToSend.push_back(addr);
+				}
+				listReleaseIterator(iter);
+
+	}
+        }
+    }
+/*
+
+    else if (strCommand == "inv")
+    {
+        vector<CInv> vInv;
+        vRecv >> vInv;
+
+        CTxDB txdb("r");
+        foreach(const CInv& inv, vInv)
+        {
+            if (fShutdown)
+                return true;
+            pfrom->AddInventoryKnown(inv);
+
+            bool fAlreadyHave = AlreadyHave(txdb, inv);
+            printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
+
+            if (!fAlreadyHave)
+                pfrom->AskFor(inv);
+            else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
+                pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
+        }
+    }
+
+
+    else if (strCommand == "getdata")
+    {
+        vector<CInv> vInv;
+        vRecv >> vInv;
+
+        foreach(const CInv& inv, vInv)
+        {
+            if (fShutdown)
+                return true;
+            printf("received getdata for: %s\n", inv.ToString().c_str());
+
+            if (inv.type == MSG_BLOCK)
+            {
+                // Send block from disk
+                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
+                if (mi != mapBlockIndex.end())
+                {
+                    //// could optimize this to send header straight from blockindex for client
+                    CBlock block;
+                    block.ReadFromDisk((*mi).second, !pfrom->fClient);
+                    pfrom->PushMessage("block", block);
+                }
+            }
+            else if (inv.IsKnownType())
+            {
+                // Send stream from relay memory
+                CRITICAL_BLOCK(cs_mapRelay)
+                {
+                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
+                    if (mi != mapRelay.end())
+                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                }
+            }
+        }
+    }
+
+
+    else if (strCommand == "getblocks")
+    {
+        CBlockLocator locator;
+        uint256 hashStop;
+        vRecv >> locator >> hashStop;
+
+        // Find the first block the caller has in the main chain
+        CBlockIndex* pindex = locator.GetBlockIndex();
+
+        // Send the rest of the chain
+        if (pindex)
+            pindex = pindex->pnext;
+        printf("getblocks %d to %s\n", (pindex ? pindex->nHeight : -1), hashStop.ToString().substr(0,14).c_str());
+        for (; pindex; pindex = pindex->pnext)
+        {
+            if (pindex->GetBlockHash() == hashStop)
+            {
+                printf("  getblocks stopping at %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString().substr(0,14).c_str());
+                break;
+            }
+
+            // Bypass setInventoryKnown in case an inventory message got lost
+            CRITICAL_BLOCK(pfrom->cs_inventory)
+            {
+                CInv inv(MSG_BLOCK, pindex->GetBlockHash());
+                // returns true if wasn't already contained in the set
+                if (pfrom->setInventoryKnown2.insert(inv).second)
+                {
+                    pfrom->setInventoryKnown.erase(inv);
+                    pfrom->vInventoryToSend.push_back(inv);
+                }
+            }
+        }
+    }
+
+
+    else if (strCommand == "tx")
+    {
+        vector<uint256> vWorkQueue;
+        CDataStream vMsg(vRecv);
+        CTransaction tx;
+        vRecv >> tx;
+
+        CInv inv(MSG_TX, tx.GetHash());
+        pfrom->AddInventoryKnown(inv);
+
+        bool fMissingInputs = false;
+        if (tx.AcceptTransaction(true, &fMissingInputs))
+        {
+            AddToWalletIfMine(tx, NULL);
+            RelayMessage(inv, vMsg);
+            mapAlreadyAskedFor.erase(inv);
+            vWorkQueue.push_back(inv.hash);
+
+            // Recursively process any orphan transactions that depended on this one
+            for (int i = 0; i < vWorkQueue.size(); i++)
+            {
+                uint256 hashPrev = vWorkQueue[i];
+                for (multimap<uint256, CDataStream*>::iterator mi = mapOrphanTransactionsByPrev.lower_bound(hashPrev);
+                     mi != mapOrphanTransactionsByPrev.upper_bound(hashPrev);
+                     ++mi)
+                {
+                    const CDataStream& vMsg = *((*mi).second);
+                    CTransaction tx;
+                    CDataStream(vMsg) >> tx;
+                    CInv inv(MSG_TX, tx.GetHash());
+
+                    if (tx.AcceptTransaction(true))
+                    {
+                        printf("   accepted orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
+                        AddToWalletIfMine(tx, NULL);
+                        RelayMessage(inv, vMsg);
+                        mapAlreadyAskedFor.erase(inv);
+                        vWorkQueue.push_back(inv.hash);
+                    }
+                }
+            }
+
+            foreach(uint256 hash, vWorkQueue)
+                EraseOrphanTx(hash);
+        }
+        else if (fMissingInputs)
+        {
+            printf("storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
+            AddOrphanTx(vMsg);
+        }
+    }
+
+
+    else if (strCommand == "review")
+    {
+        CDataStream vMsg(vRecv);
+        CReview review;
+        vRecv >> review;
+
+        CInv inv(MSG_REVIEW, review.GetHash());
+        pfrom->AddInventoryKnown(inv);
+
+        if (review.AcceptReview())
+        {
+            // Relay the original message as-is in case it's a higher version than we know how to parse
+            RelayMessage(inv, vMsg);
+            mapAlreadyAskedFor.erase(inv);
+        }
+    }
+
+
+    else if (strCommand == "block")
+    {
+        auto_ptr<CBlock> pblock(new CBlock);
+        vRecv >> *pblock;
+
+        //// debug print
+        printf("received block:\n"); pblock->print();
+
+        CInv inv(MSG_BLOCK, pblock->GetHash());
+        pfrom->AddInventoryKnown(inv);
+
+        if (ProcessBlock(pfrom, pblock.release()))
+            mapAlreadyAskedFor.erase(inv);
+    }
+
+
+    else if (strCommand == "getaddr")
+    {
+        pfrom->vAddrToSend.clear();
+        int64 nSince = GetAdjustedTime() - 5 * 24 * 60 * 60; // in the last 5 days
+        CRITICAL_BLOCK(cs_mapAddresses)
+        {
+            unsigned int nSize = mapAddresses.size();
+            foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
+            {
+                if (fShutdown)
+                    return true;
+                const CAddress& addr = item.second;
+                //// will need this if we lose IRC
+                //if (addr.nTime > nSince || (rand() % nSize) < 500)
+                if (addr.nTime > nSince)
+                    pfrom->vAddrToSend.push_back(addr);
+            }
+        }
+    }
+
+
+    else if (strCommand == "checkorder")
+    {
+        uint256 hashReply;
+        CWalletTx order;
+        vRecv >> hashReply >> order;
+
+        /// we have a chance to check the order here
+
+        // Keep giving the same key to the same ip until they use it
+        if (!mapReuseKey.count(pfrom->addr.ip))
+            mapReuseKey[pfrom->addr.ip] = GenerateNewKey();
+
+        // Send back approval of order and pubkey to use
+        CScript scriptPubKey;
+        scriptPubKey << mapReuseKey[pfrom->addr.ip] << OP_CHECKSIG;
+        pfrom->PushMessage("reply", hashReply, (int)0, scriptPubKey);
+    }
+
+
+    else if (strCommand == "submitorder")
+    {
+        uint256 hashReply;
+        CWalletTx wtxNew;
+        vRecv >> hashReply >> wtxNew;
+
+        // Broadcast
+        if (!wtxNew.AcceptWalletTransaction())
+        {
+            pfrom->PushMessage("reply", hashReply, (int)1);
+            return error("submitorder AcceptWalletTransaction() failed, returning error 1");
+        }
+        wtxNew.fTimeReceivedIsTxTime = true;
+        AddToWallet(wtxNew);
+        wtxNew.RelayWalletTransaction();
+        mapReuseKey.erase(pfrom->addr.ip);
+
+        // Send back confirmation
+        pfrom->PushMessage("reply", hashReply, (int)0);
+    }
+
+
+    else if (strCommand == "reply")
+    {
+        uint256 hashReply;
+        vRecv >> hashReply;
+
+        CRequestTracker tracker;
+        CRITICAL_BLOCK(pfrom->cs_mapRequests)
+        {
+            map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
+            if (mi != pfrom->mapRequests.end())
+            {
+                tracker = (*mi).second;
+                pfrom->mapRequests.erase(mi);
+            }
+        }
+        if (!tracker.IsNull())
+            tracker.fn(tracker.param1, vRecv);
+    }
+
+
+    else
+    {
+        // Ignore unknown commands for extensibility
+        printf("ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
+    }
+
+
+    if (!vRecv.empty())
+        printf("ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
+*/
+    return true;
+}
 //
 //bool SendMessages(CNode* pto)
 //{
@@ -2428,7 +2430,7 @@ void PrintBlockTree()
 //        while (!pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow)
 //        {
 //            const CInv& inv = (*pto->mapAskFor.begin()).second;
-//            hp_log(stdout, "sending getdata: %s\n", inv.ToString().c_str());
+//            hp_log(std::cout, "sending getdata: %s\n", inv.ToString().c_str());
 //            if (!AlreadyHave(txdb, inv))
 //                vAskFor.push_back(inv);
 //            pto->mapAskFor.erase(pto->mapAskFor.begin());
@@ -2493,7 +2495,7 @@ void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
 
 bool BitcoinMiner()
 {
-//    hp_log(stdout, "BitcoinMiner started\n");
+//    hp_log(std::cout, "BitcoinMiner started\n");
 //    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
     CKey key;
@@ -2576,7 +2578,7 @@ bool BitcoinMiner()
         }
         pblock->nBits = nBits;
         pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
-        hp_log(stdout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
+        hp_log(std::cout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
 
 
         //
@@ -2629,8 +2631,8 @@ bool BitcoinMiner()
                 assert(hash == pblock->GetHash());
 
                     //// debug print
-                    hp_log(stdout, "BitcoinMiner:\n");
-                    hp_log(stdout, "proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
+                    hp_log(std::cout, "BitcoinMiner:\n");
+                    hp_log(std::cout, "proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
                     pblock->print();
 
 //                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
@@ -2643,7 +2645,7 @@ bool BitcoinMiner()
 
                     // Process this block the same as if we had received it from another node
 //                    if (!ProcessBlock(NULL, pblock.release()))
-//                        hp_log(stdout, "ERROR in BitcoinMiner, ProcessBlock, block not accepted\n");
+//                        hp_log(std::cout, "ERROR in BitcoinMiner, ProcessBlock, block not accepted\n");
                 }
 //                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
@@ -2696,7 +2698,7 @@ int64 GetBalance()
     }
 
 //    QueryPerformanceCounter((LARGE_INTEGER*)&nEnd);
-    ///hp_log(stdout, " GetBalance() time = %16I64d\n", nEnd - nStart);
+    ///hp_log(std::cout, " GetBalance() time = %16I64d\n", nEnd - nStart);
     return nTotal;
 }
 
@@ -2793,11 +2795,11 @@ bool SelectCoins(int64 nTargetValue, set<CWalletTx*>& setCoinsRet)
                 setCoinsRet.insert(vValue[i].second);
 
         //// debug print
-        hp_log(stdout, "SelectCoins() best subset: ");
+        hp_log(std::cout, "SelectCoins() best subset: ");
         for (int i = 0; i < vValue.size(); i++)
             if (vfBest[i])
-                hp_log(stdout, "%s ", FormatMoney(vValue[i].first).c_str());
-        hp_log(stdout, "total %s\n", FormatMoney(nBest).c_str());
+                hp_log(std::cout, "%s ", FormatMoney(vValue[i].first).c_str());
+        hp_log(std::cout, "total %s\n", FormatMoney(nBest).c_str());
     }
 
     return true;
@@ -3098,7 +3100,7 @@ bool SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew)
             return error("SendMoney() : Error finalizing transaction");
         }
 
-        hp_log(stdout, "SendMoney: %s\n", wtxNew.GetHash().ToString().substr(0,6).c_str());
+        hp_log(std::cout, "SendMoney: %s\n", wtxNew.GetHash().ToString().substr(0,6).c_str());
 
         // Broadcast
         if (!wtxNew.AcceptTransaction())
@@ -3232,7 +3234,7 @@ void ReacceptWalletTransactions()
 }
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-bool AddAddress(CAddrDB& addrdb, const CAddress& addr)
+static bool AddAddress(CAddrDB& addrdb, const CAddress& addr)
 {
     if (!addr.IsRoutable())
         return false;
@@ -3417,7 +3419,7 @@ static int open_connections(btc_node_ctx * bctx)
 	int nTry = 0;
 	bool fIRCOnly = false;
 	const int nMaxConnections = 15;
-	int nnodes = btc_peer_node_count(bctx);
+	int nnodes = btc_out_count(bctx);
 
 	// Wait
 	if (nnodes >= 15 || nnodes >= mapAddresses.size())
@@ -3507,20 +3509,28 @@ static int open_connections(btc_node_ctx * bctx)
 		// Initiate outbound network connection
 		//
 		if (addrConnect.ip == addrLocalHost.ip || !addrConnect.IsIPv4()
-				|| btc_node_find(bctx, &addrConnect.ip, find_by_ip)/*FindNode(addrConnect.ip)*/)
+				|| btc_out_find(bctx, &addrConnect.ip, find_by_ip)/*FindNode(addrConnect.ip)*/)
 			continue;
 
 		hp_log(std::cout, "%s: connecting to '%s' => '%s' ...\n",
 				__FUNCTION__, ""/*item.first*/, addrConnect.ToString());
 
-		btc_node *node = btc_connect(bctx, addrConnect.GetSockAddr());
-		if (node) {
-			if (addrLocalHost.IsRoutable()) {
+		btc_node *outnode = btc_out_connect(bctx, addrConnect.GetSockAddr());
+		if (outnode) {
+//			if (addrLocalHost.IsRoutable()) {
 				// Advertise our address
 				vector<CAddress> vAddrToSend;
 				vAddrToSend.push_back(addrLocalHost);
 //				pnode->PushMessage("addr", vAddrToSend);
-			}
+
+				btc_msg * msg = 0;
+				btc_msg_new(msg, new, "addr", vAddrToSend); assert(msg);
+				rc = btc_out_send(outnode, msg, 0/*[](void * msg){ assert(msg); delete (btc_msg *)msg; }*/);
+				if(!(rc == 0)){
+					free(msg);
+					continue;
+				}
+//			}
 
 			// Get as many addresses as we can
 //			pnode->PushMessage("getaddr");
@@ -3577,7 +3587,7 @@ int main(int argc, char ** argv)
 		,	{ "proxy\0 <string>      proxy", required_argument, 0, 0 }
 		,	{ "help\0                print this message", no_argument, 0, 0 }
 #ifndef NDEBUG
-		,	{ "test\0 <int>          run test", required_argument, 0, 0 }
+		,	{ "test\0 <string>       run test, i.e. '.libhp','.btc','test_hp_io_t_main','.libhp,.btc'", required_argument, 0, 0 }
 #endif //#ifndef NDEBUG
 		, 	{ 0, 0, 0, 0 } };
     // Parameters
@@ -3604,6 +3614,10 @@ int main(int argc, char ** argv)
 			1;
 #endif //#ifndef NDEBUG
 	// load default configure if exits
+#ifndef NDEBUG
+	hp_config_test("#load bitcoin.conf");
+#endif //#ifndef NDEBUG
+
 	cfg("#load bitcoin.conf");
     /////////////////////////////////////////////////////////////////////////////////////////////
     /* parse argc/argv */
@@ -3682,32 +3696,32 @@ int main(int argc, char ** argv)
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
 	//// debug print
-    hp_log(stdout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
+    hp_log(std::cout, "Bitcoin version %d, Windows version %08x\n", VERSION, 0/*GetVersion()*/);
 
     // Load data files
     //
-    hp_log(stdout, "Loading addresses...\n");
+    hp_log(std::cout, "Loading addresses...\n");
     if (!LoadAddresses())
         strErrors += "Error loading addr.dat      \n";
 
-    hp_log(stdout, "Loading block index...\n");
+    hp_log(std::cout, "Loading block index...\n");
     if (!LoadBlockIndex())
         strErrors += "Error loading blkindex.dat      \n";
-    hp_log(stdout, "Loading wallet...\n");
+    hp_log(std::cout, "Loading wallet...\n");
     if (!LoadWallet())
         strErrors += "Error loading wallet.dat      \n";
-    hp_log(stdout, "Done loading\n");
+    hp_log(std::cout, "Done loading\n");
         //// debug print
-        hp_log(stdout, "mapBlockIndex.size() = %d\n",   mapBlockIndex.size());
-        hp_log(stdout, "nBestHeight = %d\n",            nBestHeight);
-        hp_log(stdout, "mapKeys.size() = %d\n",         mapKeys.size());
-        hp_log(stdout, "mapPubKeys.size() = %d\n",      mapPubKeys.size());
-        hp_log(stdout, "mapWallet.size() = %d\n",       mapWallet.size());
-        hp_log(stdout, "mapAddressBook.size() = %d\n",  mapAddressBook.size());
+        hp_log(std::cout, "mapBlockIndex.size() = %d\n",   mapBlockIndex.size());
+        hp_log(std::cout, "nBestHeight = %d\n",            nBestHeight);
+        hp_log(std::cout, "mapKeys.size() = %d\n",         mapKeys.size());
+        hp_log(std::cout, "mapPubKeys.size() = %d\n",      mapPubKeys.size());
+        hp_log(std::cout, "mapWallet.size() = %d\n",       mapWallet.size());
+        hp_log(std::cout, "mapAddressBook.size() = %d\n",  mapAddressBook.size());
 
     if (!strErrors.empty())
     {
-        hp_log(stderr, strErrors.c_str());
+        hp_log(std::cerr, strErrors.c_str());
         quit_(-6);
     }
 
@@ -3732,12 +3746,12 @@ int main(int argc, char ** argv)
 
 	bctx_listenfd = hp_net_listen(cfgi("btc.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
-		hp_log(stderr, "%s: unable to listen on %d for BTC node\n", __FUNCTION__, cfgi("btc.port"));
+		hp_log(std::cerr, "%s: unable to listen on %d for BTC node\n", __FUNCTION__, cfgi("btc.port"));
 		quit_(-7);
 	}
 	http_listenfd = hp_net_listen(cfgi("http.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
-		hp_log(stderr, "%s: unable to listen on %d for HTTP\n", __FUNCTION__, cfgi("http.port"));
+		hp_log(std::cerr, "%s: unable to listen on %d for HTTP\n", __FUNCTION__, cfgi("http.port"));
 		quit_(-8);
 	}
 	if(!hp_sock_is_valid(bctx_listenfd)) quit_(-9);
@@ -3745,10 +3759,10 @@ int main(int argc, char ** argv)
 
 	if(hp_io_init(ioctx) != 0) quit_(-11);
 	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) quit_(-12);
-	if(btc_node_ctx_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) quit_(-13);
+	if(btc_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) quit_(-13);
 
 	/* run */
-	hp_log(stdout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
+	hp_log(std::cout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
 	for(int i = 0; i < 100000; ++i){
 		hp_io_run(ioctx, 0, 0);
@@ -3756,12 +3770,16 @@ int main(int argc, char ** argv)
 	}
 
 	//clean
-	btc_node_ctx_uninit(bctx);
+	btc_uninit(bctx);
 	hp_http_uninit(http);
 	hp_io_uninit(ioctx);
 	hp_sock_close(http_listenfd);
 	hp_sock_close(bctx_listenfd);
 	cfg("#unload");
+
+#ifndef NDEBUG
+	hp_config_test("#unload");
+#endif //#ifndef NDEBUG
 
 exit_:
 #ifndef NDEBUG
@@ -3788,7 +3806,7 @@ exit_:
 //
 //        if (fGenerateBitcoins)
 //            if (_beginthread(ThreadBitcoinMiner, 0, NULL) == -1)
-//                hp_log(stdout, "Error: _beginthread(ThreadBitcoinMiner) failed\n");
+//                hp_log(std::cout, "Error: _beginthread(ThreadBitcoinMiner) failed\n");
 //
 //        //
 //        // Tests
