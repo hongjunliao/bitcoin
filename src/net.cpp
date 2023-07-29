@@ -31,8 +31,10 @@ extern "C"{
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-
+extern CAddress addrLocalHost;
+extern uint64 nLocalServices;
 /////////////////////////////////////////////////////////////////////////////////////////
+
 /*====================== Hash table type implementation  ==================== */
 static int r_dictSdsKeyCompare(dict *d, const void *key1, const void *key2)
 {
@@ -73,26 +75,37 @@ static dictType qosTableDictType = {
  * BTC protocol
  * */
 
-int btc_out_send(btc_node * outnode, btc_msg * msg, hp_io_free_t freecb)
+int btc_send(btc_node * outnode, char const * hdr_
+		, std::function<void(CDataStream& ds)>  const& datacb)
 {
-	int rc;
-	if(!(outnode && msg))
-		return -1;
-	rc = hp_io_write((hp_io_t *)outnode, &msg->ds[0], msg->ds.size(), freecb, 0);
+	int rc = 0;
+
+	btc_msg * msg = new btc_msg; assert(msg);
+	(msg)->ds << CMessageHeader((hdr_), 0);
+	if(datacb) { datacb((msg)->ds); }
+
+	unsigned int nSize = (msg)->ds.size() - 0 - sizeof(CMessageHeader);
+	memcpy((char*)&(msg)->ds[0] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize));
+
+	rc = hp_io_write((hp_io_t *)outnode, &msg->ds[0], msg->ds.size(),
+			[](void * msg){ assert(msg); delete (btc_msg *)msg; }, msg);
 
 #ifndef NDEBUG
-	hp_log(std::cout, "%s: sent message: '%s'/%d\n", __FUNCTION__, "", msg->ds.size());
+	hp_log(std::cout, "%s: sent message: %p/'%s'/%d\n", __FUNCTION__, msg, hdr_, msg->ds.size());
 #endif
+
+	if(!((rc) == 0)){ delete (msg); }
 
 	return rc;
 }
+	
+/////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_node_init(btc_node * node, btc_node_ctx * bctx)
 {
 	if(!(node && bctx))
 		return -1;
 
-	memset(node, 0, sizeof(btc_node));
 	node->bctx = bctx;
 
 	hp_iohdl hdl = bctx->listenio.iohdl;
@@ -101,6 +114,8 @@ int btc_node_init(btc_node * node, btc_node_ctx * bctx)
 
 	return 0;
 }
+
+
 
 void btc_node_uninit(btc_node * node)
 {
@@ -125,53 +140,74 @@ exit_:
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-static hp_io_t *  btc_node_on_new(hp_io_t * cio, hp_sock_t fd)
+static hp_io_t *  btc_node_in_on_new(hp_io_t * cio, hp_sock_t fd)
 {
-	assert(cio && cio->user);
+	assert(cio && cio->ioctx && cio->user);
 
 	btc_node_ctx * bctx = (btc_node_ctx *)cio->user;
-	if(!bctx) { return 0; }
-	btc_node * innode = (btc_node *)calloc(1, sizeof(btc_node));
+
+	auto innode = new btc_node;
 	int rc = btc_node_init(innode, bctx);
 	assert(rc == 0);
 
+	/* nio is NOT a listen io */
+	hp_iohdl niohdl = cio->iohdl;
+	niohdl.on_new = 0;
+	rc = hp_io_add(cio->ioctx, (hp_io_t *)innode, fd, niohdl);
+	if (rc != 0) {
+		btc_node_uninit(innode);
+		delete innode;
+		return 0;
+	}
+
+	innode->io.addr = cio->addr;
 	listAddNodeTail(bctx->inlist, innode);
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(std::cout, "%s: new BTC connection from '%s', total=%d\n", __FUNCTION__
+		hp_log(std::cout, "%s: New BTC connection from '%s', total=%d\n", __FUNCTION__
 				, get_ipport_cstr2(&cio->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
 	}
+
+	int64 nTime = (true/*fInbound*/ ? GetAdjustedTime() : GetTime());
+	rc  = btc_send(innode, "version"
+			, [&](CDataStream& ds){ ds << VERSION << nLocalServices << nTime << addrLocalHost; });
+	assert((rc == 0));
+
 	return (hp_io_t *)innode;
 }
 
 static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
 	, void ** hdrp, void ** bodyp)
  {
+#define return_(code) do{ rc = code; goto exit_; } while(0)
 	assert(io && hdrp);
 	int rc;
-#define quit_(code) do{ rc = code; goto exit_; }while(0)
 	auto innode = (btc_node*) io;
+
+	if(!(*len >= sizeof(CMessageHeader))) { return(0); }
+
 	// Read header
 	auto phdr = new CMessageHeader;
 	CMessageHeader &hdr = *phdr;
-	*hdrp = phdr;
 
 	CDataStream &vRecv = innode->inds;
-	vRecv.insert(vRecv.end(), buf, buf + * len);
+	vRecv.insert(vRecv.end(), buf, buf + sizeof(CMessageHeader));
 
-	std::vector<CAddress> addr;
 	int n = END(pchMessageStart) - BEGIN(pchMessageStart);
 	// Scan for message start
 	CDataStream::iterator pstart = search(vRecv.begin(), vRecv.end(),
 			BEGIN(pchMessageStart), END(pchMessageStart));
 	if (vRecv.end() - pstart < sizeof(CMessageHeader)) {
-		if (vRecv.size() > sizeof(CMessageHeader)) {
-			printf("\n\nPROCESSMESSAGE MESSAGESTART NOT FOUND\n\n");
-			vRecv.erase(vRecv.begin(), vRecv.end() - sizeof(CMessageHeader));
-		}
-		quit_(0);
+		printf("\n\nPROCESSMESSAGE MESSAGESTART NOT FOUND\n\n");
+		vRecv.clear();
+
+		*len -= sizeof(CMessageHeader);
+		memmove(buf, buf + sizeof(CMessageHeader), *len);
+
+		return_(0);
 	}
+	n = pstart - vRecv.begin();
 	if (pstart - vRecv.begin() > 0)
 		printf("\n\nPROCESSMESSAGE SKIPPED %d BYTES\n\n",
 				pstart - vRecv.begin());
@@ -181,40 +217,35 @@ static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
 	if (!hdr.IsValid()) {
 		printf("\n\nPROCESSMESSAGE: ERRORS IN HEADER %s\n\n\n",
 				hdr.GetCommand().c_str());
-		*len = 0;
-		quit_(-1);
+
+		*len -= sizeof(CMessageHeader);
+		memmove(buf, buf + sizeof(CMessageHeader), *len);
+
+		return_(0);
 	}
-//    string strCommand = hdr.GetCommand();
 
 // Message size
-	if (hdr.nMessageSize > vRecv.size()) {
+	if (hdr.nMessageSize > *len - sizeof(CMessageHeader)) {
 		// Rewind and wait for rest of message
 		///// need a mechanism to give up waiting for overlong message size error
 		printf("MESSAGE-BREAK\n");
-		vRecv.insert(vRecv.begin(), BEGIN(hdr), END(hdr));
-		quit_(0);
+
+		vRecv.insert(vRecv.end(), buf + sizeof(CMessageHeader), buf + *len);
+		*len = 0;
+
+		return_(0);
 	}
+	//message body
+	vRecv.insert(vRecv.end(), buf + sizeof(CMessageHeader), buf + sizeof(CMessageHeader) + hdr.nMessageSize );
 
-	// Copy message to its own buffer
-//    CDataStream vMsg(vRecv.begin(), vRecv.begin() + hdr.nMessageSize, vRecv.nType, vRecv.nVersion);
-	vRecv.ignore(hdr.nMessageSize);
-	vRecv >> addr;
+	*hdrp = phdr;
+	*len -= ( sizeof(CMessageHeader) + hdr.nMessageSize );
+	memmove(buf, buf + sizeof(CMessageHeader) + hdr.nMessageSize, *len);
 
-	// Process message
-//    bool fRet = false;
-//    try
-//    {
-//        CheckForShutdown(2);
-//        CRITICAL_BLOCK(cs_main)
-//            fRet = ProcessMessage(pfrom, strCommand, vMsg);
-//        CheckForShutdown(2);
-//    }
-//    CATCH_PRINT_EXCEPTION("ProcessMessage()")
-//    if (!fRet)
-//        printf("ProcessMessage(%s, %d bytes) from %s to %s FAILED\n", strCommand.c_str(), hdr.nMessageSize, pfrom->addr.ToString().c_str(), addrLocalHost.ToString().c_str());
-	*len = 0;
+	rc = 1;
 exit_:
-	return 1;
+	if(rc <= 0) { delete phdr; }
+	return rc;
 }
 
 extern bool ProcessMessage(btc_node * pfrom, string strCommand, CDataStream& vRecv);
@@ -225,24 +256,24 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 	auto innode = (btc_node*) io;
 	CDataStream &vRecv = innode->inds;
 	CMessageHeader &btchdr = *(CMessageHeader *)hdr;
-	std::vector<CAddress> addr;
 
-	vRecv >> addr;
 	CDataStream vMsg(vRecv.begin(), vRecv.begin() + btchdr.nMessageSize, vRecv.nType, vRecv.nVersion);
+	rc = ProcessMessage(innode, btchdr.GetCommand(), vMsg)? 0 : -1;
 
-	vMsg >> addr;
+	vRecv.ignore(btchdr.nMessageSize);
+	delete &btchdr;
 
-	return ProcessMessage(innode, btchdr.GetCommand(), vMsg)? 0 : -1;
+	return rc;
 }
 
-static int btc_node_on_loop(hp_io_t * io)
+static int btc_node_in_on_loop(hp_io_t * io)
 {
 	if(io->iohdl.on_new)
 		return 0;
 	return btc_node_loop((btc_node *)io);
 }
 
-static void btc_node_on_delete(hp_io_t * io)
+static void btc_node_in_on_delete(hp_io_t * io, int err, char const * errstr)
 {
 	btc_node * innode = (btc_node *)io;
 	assert(innode && innode->bctx);
@@ -250,32 +281,31 @@ static void btc_node_on_delete(hp_io_t * io)
 
 	listNode * node = listSearchKey(innode->bctx->inlist, io);
 	assert(node);
-	listDelNode(innode->bctx->inlist, node);
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(std::cout, "%s: delete BTC connection '%s', total=%d\n", __FUNCTION__
-				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
+		hp_log(std::cout, "%s: Delete BTC connection '%s', %d/'%s', total=%d\n", __FUNCTION__
+				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
 	}
 
 	listDelNode(bctx->inlist, node);
 
 	btc_node_uninit(innode);
-	free(innode);
+	delete(innode);
 }
 
-/* callbacks for btc_node peers */
-static hp_iohdl s_btc_peer_nodehdl = {
-	.on_new = btc_node_on_new,
+/* callbacks for btc_node in */
+static hp_iohdl s_btc_in_node_hdl = {
+	.on_new = btc_node_in_on_new,
 	.on_parse = btc_node_on_parse,
 	.on_dispatch = btc_node_on_dispatch,
-	.on_delete = btc_node_on_delete,
-	.on_loop = btc_node_on_loop
+	.on_delete = btc_node_in_on_delete,
+	.on_loop = btc_node_in_on_loop
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-static void btc_node_out_on_delete(hp_io_t * io)
+static void btc_node_out_on_delete(hp_io_t * io, int err, char const * errstr)
 {
 	btc_node * outnode = (btc_node *)io;
 	assert(outnode && outnode->bctx);
@@ -283,15 +313,15 @@ static void btc_node_out_on_delete(hp_io_t * io)
 
 	listNode * node = listSearchKey(outnode->bctx->outlist, outnode);
 	assert(node);
-	listDelNode(bctx->outlist, node);
 
 	if(hp_log_level > 0){
 		char buf[64] = "";
-		hp_log(std::cout, "%s: disconnected from '%s', total=%d\n", __FUNCTION__
-				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
+		hp_log(std::cout, "%s: Disconnected from '%s', %d/'%s', total=%d\n", __FUNCTION__
+				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
 	}
+	listDelNode(bctx->outlist, node);
 	btc_node_uninit(outnode);
-	free(outnode);
+	delete (outnode);
 }
 
 static int btc_node_out_on_loop(hp_io_t * io)
@@ -299,8 +329,8 @@ static int btc_node_out_on_loop(hp_io_t * io)
 	return 0;
 }
 
-/* callbacks for btc_node sent */
-static hp_iohdl s_btc_node_sent_hdl = {
+/* callbacks for btc_node out */
+static hp_iohdl s_btc_out_node_hdl = {
 	.on_new = 0,
 	.on_parse = btc_node_on_parse,
 	.on_dispatch = btc_node_on_dispatch,
@@ -321,7 +351,7 @@ int btc_init(btc_node_ctx * bctx
 	bctx->ioctx = ioctx;
 	bctx->rping_interval = ping_interval;
 
-	rc = hp_io_add(bctx->ioctx, &bctx->listenio, fd, s_btc_peer_nodehdl);
+	rc = hp_io_add(bctx->ioctx, &bctx->listenio, fd, s_btc_in_node_hdl);
 	if (rc != 0) { return -4; }
 
 	bctx->inlist = listCreate();
@@ -350,21 +380,18 @@ btc_node * btc_out_connect(btc_node_ctx * bctx, struct sockaddr_in addr)
 	if (!hp_sock_is_valid(confd)) {
 		return 0;
 	}
-	btc_node * outnode = (btc_node*) malloc(sizeof(btc_node));
+	auto outnode = new btc_node;
 	assert(outnode);
 
 	rc = btc_node_init(outnode, bctx);
 	assert(rc == 0);
 
-	rc = hp_io_add(bctx->ioctx, (hp_io_t*) outnode, confd, s_btc_node_sent_hdl);
-	if (rc != 0) {
-		btc_node_uninit(outnode);
-		free(outnode);
-		return 0;
-	}
+	rc = hp_io_add(bctx->ioctx, (hp_io_t*) outnode, confd, s_btc_out_node_hdl);
+	assert(rc == 0);
 
 	outnode->io.addr = addr;
 	listAddNodeTail(bctx->outlist, outnode);
+
 	return outnode;
 }
 

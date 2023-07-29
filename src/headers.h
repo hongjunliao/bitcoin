@@ -37,6 +37,7 @@
 using std::vector;
 using std::map;
 using std::string;
+using std::set;
 
 #define VERSION 105
 

@@ -86,8 +86,8 @@ static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 // net.cpp
 //
 bool fClient = false;
-static uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
-static CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
+uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
+CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
 //CNode nodeLocalHost(INVALID_SOCKET, CAddress("127.0.0.1", nLocalServices));
 //CNode* pnodeLocalHost = &nodeLocalHost;
 static bool fShutdown = false;
@@ -2020,11 +2020,12 @@ void PrintBlockTree()
 //
 bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
+	int rc;
     static map<unsigned int, vector<unsigned char> > mapReuseKey;
-    printf("received: %-12s (%d bytes)  ", strCommand.c_str(), vRecv.size());
-    for (int i = 0; i < std::min((int)vRecv.size(), 20); i++)
-        printf("%02x ", vRecv[i] & 0xff);
-    printf("\n");
+//    printf("received: %-12s (%d bytes)  ", strCommand.c_str(), vRecv.size());
+//    for (int i = 0; i < std::min((int)vRecv.size(), 20); i++)
+//        printf("%02x ", vRecv[i] & 0xff);
+//    printf("\n");
     if (nDropMessagesTest > 0 && GetRand(nDropMessagesTest) == 0)
     {
         printf("dropmessages DROPPING RECV MESSAGE\n");
@@ -2033,16 +2034,17 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     if (strCommand == "version")
     {
-//        // Can only do this once
-//        if (pfrom->nVersion != 0)
-//            return false;
-//
-//        int64 nTime;
-//        CAddress addrMe;
-//        vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
-//        if (pfrom->nVersion == 0)
-//            return false;
-//
+        // Can only do this once
+        if (pfrom->nVersion != 0)
+            return false;
+
+        int64 nTime;
+        CAddress addrMe;
+        uint64 nServices;
+        vRecv >> pfrom->nVersion >> nServices >> nTime >> addrMe;
+        if (pfrom->nVersion == 0)
+            return false;
+
 //        pfrom->vSend.SetVersion(min(pfrom->nVersion, VERSION));
 //        pfrom->vRecv.SetVersion(min(pfrom->nVersion, VERSION));
 //
@@ -2055,21 +2057,24 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 //
 //        AddTimeData(pfrom->addr.ip, nTime);
 //
-//        // Ask the first connected node for block updates
-//        static bool fAskedForBlocks;
-//        if (!fAskedForBlocks && !pfrom->fClient)
-//        {
-//            fAskedForBlocks = true;
-//            pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), uint256(0));
-//        }
-//
-//        printf("version message: %s has version %d, addrMe=%s\n", pfrom->addr.ToString().c_str(), pfrom->nVersion, addrMe.ToString().c_str());
-//    }
-//
-//    else if (pfrom->nVersion == 0)
-//    {
-//        // Must have a version message before anything else
-//        return false;
+        // Ask the first connected node for block updates
+        static bool fAskedForBlocks;
+        if (!fAskedForBlocks/* && !pfrom->fClient*/)
+        {
+            fAskedForBlocks = true;
+			rc  = btc_send(pfrom, "getblocks"
+					, [&](CDataStream& ds){ ds << CBlockLocator(pindexBest) << uint256(0); });
+			if(!(rc == 0)){ return false; }
+        }
+
+//        printf("version message: %s has version %d, addrMe=%s\n"
+//        , pfrom->addr.ToString().c_str(), pfrom->nVersion, addrMe.ToString().c_str());
+    }
+
+    else if (pfrom->nVersion == 0)
+    {
+        // Must have a version message before anything else
+        return false;
     }
 
 
@@ -2095,71 +2100,71 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 				}
 				listReleaseIterator(iter);
 
-	}
-        }
-    }
-/*
-
-    else if (strCommand == "inv")
-    {
-        vector<CInv> vInv;
-        vRecv >> vInv;
-
-        CTxDB txdb("r");
-        foreach(const CInv& inv, vInv)
-        {
-            if (fShutdown)
-                return true;
-            pfrom->AddInventoryKnown(inv);
-
-            bool fAlreadyHave = AlreadyHave(txdb, inv);
-            printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
-
-            if (!fAlreadyHave)
-                pfrom->AskFor(inv);
-            else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
-                pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
+			}
         }
     }
 
 
-    else if (strCommand == "getdata")
-    {
-        vector<CInv> vInv;
-        vRecv >> vInv;
-
-        foreach(const CInv& inv, vInv)
-        {
-            if (fShutdown)
-                return true;
-            printf("received getdata for: %s\n", inv.ToString().c_str());
-
-            if (inv.type == MSG_BLOCK)
-            {
-                // Send block from disk
-                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
-                if (mi != mapBlockIndex.end())
-                {
-                    //// could optimize this to send header straight from blockindex for client
-                    CBlock block;
-                    block.ReadFromDisk((*mi).second, !pfrom->fClient);
-                    pfrom->PushMessage("block", block);
-                }
-            }
-            else if (inv.IsKnownType())
-            {
-                // Send stream from relay memory
-                CRITICAL_BLOCK(cs_mapRelay)
-                {
-                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
-                    if (mi != mapRelay.end())
-                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
-                }
-            }
-        }
-    }
-
-
+//    else if (strCommand == "inv")
+//    {
+//        vector<CInv> vInv;
+//        vRecv >> vInv;
+//
+//        CTxDB txdb("r");
+//        foreach(const CInv& inv, vInv)
+//        {
+//            if (fShutdown)
+//                return true;
+//            pfrom->AddInventoryKnown(inv);
+//
+//            bool fAlreadyHave = AlreadyHave(txdb, inv);
+//            printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
+//
+//            if (!fAlreadyHave)
+//                pfrom->AskFor(inv);
+//            else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
+//                pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
+//        }
+//    }
+//
+//
+//    else if (strCommand == "getdata")
+//    {
+//        vector<CInv> vInv;
+//        vRecv >> vInv;
+//
+//        foreach(const CInv& inv, vInv)
+//        {
+//            if (fShutdown)
+//                return true;
+//            printf("received getdata for: %s\n", inv.ToString().c_str());
+//
+//            if (inv.type == MSG_BLOCK)
+//            {
+//                // Send block from disk
+//                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
+//                if (mi != mapBlockIndex.end())
+//                {
+//                    //// could optimize this to send header straight from blockindex for client
+//                    CBlock block;
+//                    block.ReadFromDisk((*mi).second, !pfrom->fClient);
+//                    pfrom->PushMessage("block", block);
+//                }
+//            }
+//            else if (inv.IsKnownType())
+//            {
+//                // Send stream from relay memory
+//                CRITICAL_BLOCK(cs_mapRelay)
+//                {
+//                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
+//                    if (mi != mapRelay.end())
+//                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+//                }
+//            }
+//        }
+//    }
+//
+//
     else if (strCommand == "getblocks")
     {
         CBlockLocator locator;
@@ -2182,7 +2187,6 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             }
 
             // Bypass setInventoryKnown in case an inventory message got lost
-            CRITICAL_BLOCK(pfrom->cs_inventory)
             {
                 CInv inv(MSG_BLOCK, pindex->GetBlockHash());
                 // returns true if wasn't already contained in the set
@@ -2194,187 +2198,187 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             }
         }
     }
+//
+//
+//    else if (strCommand == "tx")
+//    {
+//        vector<uint256> vWorkQueue;
+//        CDataStream vMsg(vRecv);
+//        CTransaction tx;
+//        vRecv >> tx;
+//
+//        CInv inv(MSG_TX, tx.GetHash());
+//        pfrom->AddInventoryKnown(inv);
+//
+//        bool fMissingInputs = false;
+//        if (tx.AcceptTransaction(true, &fMissingInputs))
+//        {
+//            AddToWalletIfMine(tx, NULL);
+//            RelayMessage(inv, vMsg);
+//            mapAlreadyAskedFor.erase(inv);
+//            vWorkQueue.push_back(inv.hash);
+//
+//            // Recursively process any orphan transactions that depended on this one
+//            for (int i = 0; i < vWorkQueue.size(); i++)
+//            {
+//                uint256 hashPrev = vWorkQueue[i];
+//                for (multimap<uint256, CDataStream*>::iterator mi = mapOrphanTransactionsByPrev.lower_bound(hashPrev);
+//                     mi != mapOrphanTransactionsByPrev.upper_bound(hashPrev);
+//                     ++mi)
+//                {
+//                    const CDataStream& vMsg = *((*mi).second);
+//                    CTransaction tx;
+//                    CDataStream(vMsg) >> tx;
+//                    CInv inv(MSG_TX, tx.GetHash());
+//
+//                    if (tx.AcceptTransaction(true))
+//                    {
+//                        printf("   accepted orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
+//                        AddToWalletIfMine(tx, NULL);
+//                        RelayMessage(inv, vMsg);
+//                        mapAlreadyAskedFor.erase(inv);
+//                        vWorkQueue.push_back(inv.hash);
+//                    }
+//                }
+//            }
+//
+//            foreach(uint256 hash, vWorkQueue)
+//                EraseOrphanTx(hash);
+//        }
+//        else if (fMissingInputs)
+//        {
+//            printf("storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
+//            AddOrphanTx(vMsg);
+//        }
+//    }
+//
+//
+//    else if (strCommand == "review")
+//    {
+//        CDataStream vMsg(vRecv);
+//        CReview review;
+//        vRecv >> review;
+//
+//        CInv inv(MSG_REVIEW, review.GetHash());
+//        pfrom->AddInventoryKnown(inv);
+//
+//        if (review.AcceptReview())
+//        {
+//            // Relay the original message as-is in case it's a higher version than we know how to parse
+//            RelayMessage(inv, vMsg);
+//            mapAlreadyAskedFor.erase(inv);
+//        }
+//    }
+//
+//
+//    else if (strCommand == "block")
+//    {
+//        auto_ptr<CBlock> pblock(new CBlock);
+//        vRecv >> *pblock;
+//
+//        //// debug print
+//        printf("received block:\n"); pblock->print();
+//
+//        CInv inv(MSG_BLOCK, pblock->GetHash());
+//        pfrom->AddInventoryKnown(inv);
+//
+//        if (ProcessBlock(pfrom, pblock.release()))
+//            mapAlreadyAskedFor.erase(inv);
+//    }
+//
+//
+//    else if (strCommand == "getaddr")
+//    {
+//        pfrom->vAddrToSend.clear();
+//        int64 nSince = GetAdjustedTime() - 5 * 24 * 60 * 60; // in the last 5 days
+//        CRITICAL_BLOCK(cs_mapAddresses)
+//        {
+//            unsigned int nSize = mapAddresses.size();
+//            foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
+//            {
+//                if (fShutdown)
+//                    return true;
+//                const CAddress& addr = item.second;
+//                //// will need this if we lose IRC
+//                //if (addr.nTime > nSince || (rand() % nSize) < 500)
+//                if (addr.nTime > nSince)
+//                    pfrom->vAddrToSend.push_back(addr);
+//            }
+//        }
+//    }
+//
+//
+//    else if (strCommand == "checkorder")
+//    {
+//        uint256 hashReply;
+//        CWalletTx order;
+//        vRecv >> hashReply >> order;
+//
+//        /// we have a chance to check the order here
+//
+//        // Keep giving the same key to the same ip until they use it
+//        if (!mapReuseKey.count(pfrom->addr.ip))
+//            mapReuseKey[pfrom->addr.ip] = GenerateNewKey();
+//
+//        // Send back approval of order and pubkey to use
+//        CScript scriptPubKey;
+//        scriptPubKey << mapReuseKey[pfrom->addr.ip] << OP_CHECKSIG;
+//        pfrom->PushMessage("reply", hashReply, (int)0, scriptPubKey);
+//    }
+//
+//
+//    else if (strCommand == "submitorder")
+//    {
+//        uint256 hashReply;
+//        CWalletTx wtxNew;
+//        vRecv >> hashReply >> wtxNew;
+//
+//        // Broadcast
+//        if (!wtxNew.AcceptWalletTransaction())
+//        {
+//            pfrom->PushMessage("reply", hashReply, (int)1);
+//            return error("submitorder AcceptWalletTransaction() failed, returning error 1");
+//        }
+//        wtxNew.fTimeReceivedIsTxTime = true;
+//        AddToWallet(wtxNew);
+//        wtxNew.RelayWalletTransaction();
+//        mapReuseKey.erase(pfrom->addr.ip);
+//
+//        // Send back confirmation
+//        pfrom->PushMessage("reply", hashReply, (int)0);
+//    }
+//
+//
+//    else if (strCommand == "reply")
+//    {
+//        uint256 hashReply;
+//        vRecv >> hashReply;
+//
+//        CRequestTracker tracker;
+//        CRITICAL_BLOCK(pfrom->cs_mapRequests)
+//        {
+//            map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
+//            if (mi != pfrom->mapRequests.end())
+//            {
+//                tracker = (*mi).second;
+//                pfrom->mapRequests.erase(mi);
+//            }
+//        }
+//        if (!tracker.IsNull())
+//            tracker.fn(tracker.param1, vRecv);
+//    }
+//
+//
+//    else
+//    {
+//        // Ignore unknown commands for extensibility
+//        printf("ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
+//    }
+//
+//
+//    if (!vRecv.empty())
+//        printf("ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
 
-
-    else if (strCommand == "tx")
-    {
-        vector<uint256> vWorkQueue;
-        CDataStream vMsg(vRecv);
-        CTransaction tx;
-        vRecv >> tx;
-
-        CInv inv(MSG_TX, tx.GetHash());
-        pfrom->AddInventoryKnown(inv);
-
-        bool fMissingInputs = false;
-        if (tx.AcceptTransaction(true, &fMissingInputs))
-        {
-            AddToWalletIfMine(tx, NULL);
-            RelayMessage(inv, vMsg);
-            mapAlreadyAskedFor.erase(inv);
-            vWorkQueue.push_back(inv.hash);
-
-            // Recursively process any orphan transactions that depended on this one
-            for (int i = 0; i < vWorkQueue.size(); i++)
-            {
-                uint256 hashPrev = vWorkQueue[i];
-                for (multimap<uint256, CDataStream*>::iterator mi = mapOrphanTransactionsByPrev.lower_bound(hashPrev);
-                     mi != mapOrphanTransactionsByPrev.upper_bound(hashPrev);
-                     ++mi)
-                {
-                    const CDataStream& vMsg = *((*mi).second);
-                    CTransaction tx;
-                    CDataStream(vMsg) >> tx;
-                    CInv inv(MSG_TX, tx.GetHash());
-
-                    if (tx.AcceptTransaction(true))
-                    {
-                        printf("   accepted orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-                        AddToWalletIfMine(tx, NULL);
-                        RelayMessage(inv, vMsg);
-                        mapAlreadyAskedFor.erase(inv);
-                        vWorkQueue.push_back(inv.hash);
-                    }
-                }
-            }
-
-            foreach(uint256 hash, vWorkQueue)
-                EraseOrphanTx(hash);
-        }
-        else if (fMissingInputs)
-        {
-            printf("storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-            AddOrphanTx(vMsg);
-        }
-    }
-
-
-    else if (strCommand == "review")
-    {
-        CDataStream vMsg(vRecv);
-        CReview review;
-        vRecv >> review;
-
-        CInv inv(MSG_REVIEW, review.GetHash());
-        pfrom->AddInventoryKnown(inv);
-
-        if (review.AcceptReview())
-        {
-            // Relay the original message as-is in case it's a higher version than we know how to parse
-            RelayMessage(inv, vMsg);
-            mapAlreadyAskedFor.erase(inv);
-        }
-    }
-
-
-    else if (strCommand == "block")
-    {
-        auto_ptr<CBlock> pblock(new CBlock);
-        vRecv >> *pblock;
-
-        //// debug print
-        printf("received block:\n"); pblock->print();
-
-        CInv inv(MSG_BLOCK, pblock->GetHash());
-        pfrom->AddInventoryKnown(inv);
-
-        if (ProcessBlock(pfrom, pblock.release()))
-            mapAlreadyAskedFor.erase(inv);
-    }
-
-
-    else if (strCommand == "getaddr")
-    {
-        pfrom->vAddrToSend.clear();
-        int64 nSince = GetAdjustedTime() - 5 * 24 * 60 * 60; // in the last 5 days
-        CRITICAL_BLOCK(cs_mapAddresses)
-        {
-            unsigned int nSize = mapAddresses.size();
-            foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
-            {
-                if (fShutdown)
-                    return true;
-                const CAddress& addr = item.second;
-                //// will need this if we lose IRC
-                //if (addr.nTime > nSince || (rand() % nSize) < 500)
-                if (addr.nTime > nSince)
-                    pfrom->vAddrToSend.push_back(addr);
-            }
-        }
-    }
-
-
-    else if (strCommand == "checkorder")
-    {
-        uint256 hashReply;
-        CWalletTx order;
-        vRecv >> hashReply >> order;
-
-        /// we have a chance to check the order here
-
-        // Keep giving the same key to the same ip until they use it
-        if (!mapReuseKey.count(pfrom->addr.ip))
-            mapReuseKey[pfrom->addr.ip] = GenerateNewKey();
-
-        // Send back approval of order and pubkey to use
-        CScript scriptPubKey;
-        scriptPubKey << mapReuseKey[pfrom->addr.ip] << OP_CHECKSIG;
-        pfrom->PushMessage("reply", hashReply, (int)0, scriptPubKey);
-    }
-
-
-    else if (strCommand == "submitorder")
-    {
-        uint256 hashReply;
-        CWalletTx wtxNew;
-        vRecv >> hashReply >> wtxNew;
-
-        // Broadcast
-        if (!wtxNew.AcceptWalletTransaction())
-        {
-            pfrom->PushMessage("reply", hashReply, (int)1);
-            return error("submitorder AcceptWalletTransaction() failed, returning error 1");
-        }
-        wtxNew.fTimeReceivedIsTxTime = true;
-        AddToWallet(wtxNew);
-        wtxNew.RelayWalletTransaction();
-        mapReuseKey.erase(pfrom->addr.ip);
-
-        // Send back confirmation
-        pfrom->PushMessage("reply", hashReply, (int)0);
-    }
-
-
-    else if (strCommand == "reply")
-    {
-        uint256 hashReply;
-        vRecv >> hashReply;
-
-        CRequestTracker tracker;
-        CRITICAL_BLOCK(pfrom->cs_mapRequests)
-        {
-            map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
-            if (mi != pfrom->mapRequests.end())
-            {
-                tracker = (*mi).second;
-                pfrom->mapRequests.erase(mi);
-            }
-        }
-        if (!tracker.IsNull())
-            tracker.fn(tracker.param1, vRecv);
-    }
-
-
-    else
-    {
-        // Ignore unknown commands for extensibility
-        printf("ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
-    }
-
-
-    if (!vRecv.empty())
-        printf("ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
-*/
     return true;
 }
 //
@@ -3517,23 +3521,25 @@ static int open_connections(btc_node_ctx * bctx)
 
 		btc_node *outnode = btc_out_connect(bctx, addrConnect.GetSockAddr());
 		if (outnode) {
+	        // Push a version message
+	        /// when NTP implemented, change to just nTime = GetAdjustedTime()
+	        int64 nTime = (true/*fInbound*/ ? GetAdjustedTime() : GetTime());
+			rc  = btc_send(outnode, "version"
+					, [&](CDataStream& ds){ ds << VERSION << nLocalServices << nTime << addrLocalHost; });
+			if(!(rc == 0)){ continue; }
 //			if (addrLocalHost.IsRoutable()) {
 				// Advertise our address
 				vector<CAddress> vAddrToSend;
 				vAddrToSend.push_back(addrLocalHost);
 //				pnode->PushMessage("addr", vAddrToSend);
-
-				btc_msg * msg = 0;
-				btc_msg_new(msg, new, "addr", vAddrToSend); assert(msg);
-				rc = btc_out_send(outnode, msg, 0/*[](void * msg){ assert(msg); delete (btc_msg *)msg; }*/);
-				if(!(rc == 0)){
-					free(msg);
-					continue;
-				}
+				rc  = btc_send(outnode, "addr", [&](CDataStream& ds){ ds << vAddrToSend; });
+				if(!(rc == 0)){ continue; }
 //			}
 
 			// Get as many addresses as we can
 //			pnode->PushMessage("getaddr");
+			rc = btc_send(outnode, "getaddr", 0);
+			if(!(rc == 0)){ continue; }
 
 			////// should the one on the receiving end do this too?
 			// Subscribe our local subscription list
@@ -3566,7 +3572,7 @@ static int btc_ctx_loop(btc_node_ctx * bctx)
 int main(int argc, char ** argv)
 {
 	int rc = 0;
-#define quit_(code) do{ rc = code; goto exit_; }while(0)
+#define return_(code) do{ rc = code; goto exit_; }while(0)
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	//argc,argv
@@ -3627,19 +3633,19 @@ int main(int argc, char ** argv)
 			break;
 		char const * arg = optarg? optarg : "";
 		if(i == 0)     {
-			if(uv_chdir(arg) != 0) { quit_(-3); }
+			if(uv_chdir(arg) != 0) { return_(-3); }
 			char buffer[PATH_MAX];
 			size_t size = sizeof(buffer);
 			uv_cwd(buffer, &size);
 			strSetDataDir = string(buffer);
 
 			// load configure if exist
-			if(cfgi("#load bitcoin.conf") != 0) { quit_(-4); }
+			if(cfgi("#load bitcoin.conf") != 0) { return_(-4); }
 		}
 		else if(i == 1){
 			char file[512] = "";
 			snprintf(file, sizeof(file), "#load %s", arg);
-			if(cfgi(file) != 0) { quit_(-4); }
+			if(cfgi(file) != 0) { return_(-4); }
 		}
 		else if(i == 2){  hp_log_level = atoi(arg); }
 		else if(i == 3){  fDebug = true; }
@@ -3673,14 +3679,14 @@ int main(int argc, char ** argv)
 			if(strstr(arg, ".btc")) { hp_config_test("#set btc.runtest 1"); }
 		}
 #endif //#ifndef NDEBUG
-		else quit_(-5);
+		else return_(-5);
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 #ifndef NDEBUG
 	fprintf(stdout, "%s: build at %s %s\n", __FUNCTION__, __DATE__, __TIME__);
 	rc = test_btc_main(argc, argv);
-	if(rc != 0) quit_(-99);
+	if(rc != 0) return_(-99);
 #endif //#ifndef NDEBUG
    /////////////////////////////////////////////////////////////////////////////////////////////
 	loglevel  = cfg("loglevel");
@@ -3722,7 +3728,7 @@ int main(int argc, char ** argv)
     if (!strErrors.empty())
     {
         hp_log(std::cerr, strErrors.c_str());
-        quit_(-6);
+        return_(-6);
     }
 
     // Add wallet transactions that aren't already in a block to mapTransactions
@@ -3747,19 +3753,19 @@ int main(int argc, char ** argv)
 	bctx_listenfd = hp_net_listen(cfgi("btc.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
 		hp_log(std::cerr, "%s: unable to listen on %d for BTC node\n", __FUNCTION__, cfgi("btc.port"));
-		quit_(-7);
+		return_(-7);
 	}
 	http_listenfd = hp_net_listen(cfgi("http.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
 		hp_log(std::cerr, "%s: unable to listen on %d for HTTP\n", __FUNCTION__, cfgi("http.port"));
-		quit_(-8);
+		return_(-8);
 	}
-	if(!hp_sock_is_valid(bctx_listenfd)) quit_(-9);
-	if(!hp_sock_is_valid(http_listenfd)) quit_(-10);
+	if(!hp_sock_is_valid(bctx_listenfd)) return_(-9);
+	if(!hp_sock_is_valid(http_listenfd)) return_(-10);
 
-	if(hp_io_init(ioctx) != 0) quit_(-11);
-	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) quit_(-12);
-	if(btc_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) quit_(-13);
+	if(hp_io_init(ioctx) != 0) return_(-11);
+	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) return_(-12);
+	if(btc_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) return_(-13);
 
 	/* run */
 	hp_log(std::cout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__

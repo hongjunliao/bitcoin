@@ -399,35 +399,33 @@ extern "C" {
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-//union hp_iohdr {
-//	CMessageHeader btchdr;
-//};
-
 typedef struct btc_msg{
 	CDataStream    ds;
 } btc_msg;
 
-#define btc_msg_new(msg, alloc_, hdr_, data) do {           \
-	(msg) = new btc_msg;          \
-	(msg)->ds << CMessageHeader((hdr_), 0) << (data);       \
-    unsigned int nSize = (msg)->ds.size() - 0 - sizeof(CMessageHeader);                           \
-    memcpy((char*)&(msg)->ds[0] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize)); \
-}while(0)
 /////////////////////////////////////////////////////////////////////////////////////////
 
 typedef struct btc_node btc_node;
 typedef struct btc_node_ctx btc_node_ctx;
 typedef btc_node CNode;
 
-/* for BTC client */
+/* BTC node */
 struct btc_node {
 	hp_io_t io;
 	CDataStream inds;	/* data in */
 	btc_node_ctx * bctx;
 
+    int nVersion;
     // flood
 	std::vector<CAddress> vAddrToSend;
     std::set<CAddress> setAddrKnown;
+
+    // inventory based relay
+    set<CInv> setInventoryKnown;
+    set<CInv> setInventoryKnown2;
+    vector<CInv> vInventoryToSend;
+    std::multimap<int64, CInv> mapAskFor;
+
 };
 
 struct btc_node_ctx {
@@ -453,16 +451,20 @@ void btc_uninit(btc_node_ctx * ioctx);
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
- *  for nodes sent out
+ *  for nodes  out
  */
 btc_node * btc_out_connect(btc_node_ctx * bctx, struct sockaddr_in addr);
 btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr, void *key));
 #define btc_out_count(bctx) (listLength(bctx->outlist))
-int btc_out_send(btc_node * outnode, btc_msg * msg, hp_io_free_t free);
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+int btc_send(btc_node * outnode, char const * hdr_
+		, std::function<void(CDataStream& ds)>  const& datacb);
 /////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * for nodes coming
+ * for nodes in
  */
 #define btc_in_count(bctx) (listLength(bctx->inlist))
 /////////////////////////////////////////////////////////////////////////////////////////
