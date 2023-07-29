@@ -38,6 +38,7 @@ using std::vector;
 using std::map;
 using std::string;
 using std::set;
+using std::multimap;
 
 #define VERSION 105
 

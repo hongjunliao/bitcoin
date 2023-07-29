@@ -191,7 +191,7 @@ static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
 	auto phdr = new CMessageHeader;
 	CMessageHeader &hdr = *phdr;
 
-	CDataStream &vRecv = innode->inds;
+	CDataStream &vRecv = innode->vRecv;
 	vRecv.insert(vRecv.end(), buf, buf + sizeof(CMessageHeader));
 
 	int n = END(pchMessageStart) - BEGIN(pchMessageStart);
@@ -248,16 +248,16 @@ exit_:
 	return rc;
 }
 
-extern bool ProcessMessage(btc_node * pfrom, string strCommand, CDataStream& vRecv);
 static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 {
 	assert(io && hdr);
 	int rc;
 	auto innode = (btc_node*) io;
-	CDataStream &vRecv = innode->inds;
+	CDataStream &vRecv = innode->vRecv;
 	CMessageHeader &btchdr = *(CMessageHeader *)hdr;
 
 	CDataStream vMsg(vRecv.begin(), vRecv.begin() + btchdr.nMessageSize, vRecv.nType, vRecv.nVersion);
+	extern bool ProcessMessage(btc_node * pfrom, string strCommand, CDataStream& vRecv);
 	rc = ProcessMessage(innode, btchdr.GetCommand(), vMsg)? 0 : -1;
 
 	vRecv.ignore(btchdr.nMessageSize);

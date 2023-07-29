@@ -384,7 +384,7 @@ public:
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
+#include <openssl/rand.h>
 #include "hp/hp_io_t.h"
 #include "hp/sdsinc.h"
 #ifdef __cplusplus
@@ -405,28 +405,428 @@ typedef struct btc_msg{
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct btc_node btc_node;
+typedef class CNode btc_node;
 typedef struct btc_node_ctx btc_node_ctx;
-typedef btc_node CNode;
 
 /* BTC node */
-struct btc_node {
+class CNode {
+public:
 	hp_io_t io;
-	CDataStream inds;	/* data in */
 	btc_node_ctx * bctx;
+	// socket
+	uint64 nServices;
+//	SOCKET hSocket;
+	CDataStream vSend;
+	CDataStream vRecv;	/* data in */
+//	CCriticalSection cs_vSend;
+//	CCriticalSection cs_vRecv;
+	unsigned int nPushPos;
+	CAddress addr;
+	int nVersion;
+	bool fClient;
+	bool fInbound;
+	bool fNetworkNode;
+	bool fDisconnect;
+protected:
+	int nRefCount;
+public:
+	int64 nReleaseTime;
+	map<uint256, CRequestTracker> mapRequests;
+//	CCriticalSection cs_mapRequests;
 
-    int nVersion;
-    // flood
-	std::vector<CAddress> vAddrToSend;
-    std::set<CAddress> setAddrKnown;
+	// flood
+	vector<CAddress> vAddrToSend;
+	set<CAddress> setAddrKnown;
 
-    // inventory based relay
-    set<CInv> setInventoryKnown;
-    set<CInv> setInventoryKnown2;
-    vector<CInv> vInventoryToSend;
-    std::multimap<int64, CInv> mapAskFor;
+	// inventory based relay
+	set<CInv> setInventoryKnown;
+	set<CInv> setInventoryKnown2;
+	vector<CInv> vInventoryToSend;
+//	CCriticalSection cs_inventory;
+	multimap<int64, CInv> mapAskFor;
 
+	// publish and subscription
+	vector<char> vfSubscribe;
+public:
+	CNode(/*SOCKET hSocketIn, CAddress addrIn, bool fInboundIn=false*/)
+	{
+		nServices = 0;
+//		hSocket = hSocketIn;
+		vSend.SetType(SER_NETWORK);
+		vRecv.SetType(SER_NETWORK);
+		nPushPos = -1;
+//		addr = addrIn;
+		nVersion = 0;
+		fClient = false; // set by version message
+//		fInbound = fInboundIn;
+		fNetworkNode = false;
+		fDisconnect = false;
+		nRefCount = 0;
+		nReleaseTime = 0;
+		vfSubscribe.assign(256, false);
+
+		// Push a version message
+		/// when NTP implemented, change to just nTime = GetAdjustedTime()
+//		int64 nTime = (fInbound ? GetAdjustedTime() : GetTime());
+//		PushMessage("version", VERSION, nLocalServices, nTime, addr);
+	}
+
+	~CNode()
+	{
+//		if (hSocket != INVALID_SOCKET)
+//			closesocket(hSocket);
+	}
+
+private:
+	CNode(const CNode&);
+	void operator=(const CNode&);
+public:
+
+
+	bool ReadyToDisconnect()
+	{
+		return fDisconnect || GetRefCount() <= 0;
+	}
+
+	int GetRefCount()
+	{
+		return std::max(nRefCount, 0) + (GetTime() < nReleaseTime ? 1 : 0);
+	}
+
+	void AddRef(int64 nTimeout=0)
+	{
+		if (nTimeout != 0)
+			nReleaseTime = std::max(nReleaseTime, GetTime() + nTimeout);
+		else
+			nRefCount++;
+	}
+
+	void Release()
+	{
+		nRefCount--;
+	}
+
+
+
+	void AddInventoryKnown(const CInv& inv)
+	{
+//		//CRITICAL_BLOCK(cs_inventory)
+			setInventoryKnown.insert(inv);
+	}
+
+	void PushInventory(const CInv& inv)
+	{
+//		//CRITICAL_BLOCK(cs_inventory)
+			if (!setInventoryKnown.count(inv))
+				vInventoryToSend.push_back(inv);
+	}
+
+	void AskFor(const CInv& inv)
+	{
+		extern map<CInv, int64> mapAlreadyAskedFor;
+		// We're using mapAskFor as a priority queue,
+		// the key is the earliest time the request can be sent
+		int64& nRequestTime = mapAlreadyAskedFor[inv];
+		printf("askfor %s  %I64d\n", inv.ToString().c_str(), nRequestTime);
+
+		// Make sure not to reuse time indexes to keep things in the same order
+		int64 nNow = (GetTime() - 1) * 1000000;
+		static int64 nLastTime;
+		nLastTime = nNow = std::max(nNow, ++nLastTime);
+
+		// Each retry is 2 minutes after the last
+		nRequestTime = std::max(nRequestTime + 2 * 60 * 1000000, nNow);
+		mapAskFor.insert(std::make_pair(nRequestTime, inv));
+	}
+
+
+
+	void BeginMessage(const char* pszCommand)
+	{
+		//EnterCriticalSection(&cs_vSend);
+		if (nPushPos != -1)
+			AbortMessage();
+		nPushPos = vSend.size();
+		vSend << CMessageHeader(pszCommand, 0);
+		printf("sending: %-12s ", pszCommand);
+	}
+
+	void AbortMessage()
+	{
+		if (nPushPos == -1)
+			return;
+		vSend.resize(nPushPos);
+		nPushPos = -1;
+		//LeaveCriticalSection(&cs_vSend);
+		printf("(aborted)\n");
+	}
+
+	void EndMessage()
+	{
+		extern int nDropMessagesTest;
+		if (nDropMessagesTest > 0 && GetRand(nDropMessagesTest) == 0)
+		{
+			printf("dropmessages DROPPING SEND MESSAGE\n");
+			AbortMessage();
+			return;
+		}
+
+		if (nPushPos == -1)
+			return;
+
+		// Patch in the size
+		unsigned int nSize = vSend.size() - nPushPos - sizeof(CMessageHeader);
+		memcpy((char*)&vSend[nPushPos] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize));
+
+		printf("(%d bytes)  ", nSize);
+		//for (int i = nPushPos+sizeof(CMessageHeader); i < min(vSend.size(), nPushPos+sizeof(CMessageHeader)+20U); i++)
+		//    printf("%02x ", vSend[i] & 0xff);
+		printf("\n");
+
+		nPushPos = -1;
+		//LeaveCriticalSection(&cs_vSend);
+	}
+
+	void EndMessageAbortIfEmpty()
+	{
+		if (nPushPos == -1)
+			return;
+		int nSize = vSend.size() - nPushPos - sizeof(CMessageHeader);
+		if (nSize > 0)
+			EndMessage();
+		else
+			AbortMessage();
+	}
+
+	const char* GetMessageCommand() const
+	{
+		if (nPushPos == -1)
+			return "";
+		return &vSend[nPushPos] + offsetof(CMessageHeader, pchCommand);
+	}
+
+
+
+
+	void PushMessage(const char* pszCommand)
+	{
+		try
+		{
+			BeginMessage(pszCommand);
+			EndMessage();
+		}
+		catch (...)
+		{
+			AbortMessage();
+			throw;
+		}
+	}
+
+	template<typename T1>
+	void PushMessage(const char* pszCommand, const T1& a1)
+	{
+		try
+		{
+			BeginMessage(pszCommand);
+			vSend << a1;
+			EndMessage();
+		}
+		catch (...)
+		{
+			AbortMessage();
+			throw;
+		}
+	}
+
+	template<typename T1, typename T2>
+	void PushMessage(const char* pszCommand, const T1& a1, const T2& a2)
+	{
+		try
+		{
+			BeginMessage(pszCommand);
+			vSend << a1 << a2;
+			EndMessage();
+		}
+		catch (...)
+		{
+			AbortMessage();
+			throw;
+		}
+	}
+
+	template<typename T1, typename T2, typename T3>
+	void PushMessage(const char* pszCommand, const T1& a1, const T2& a2, const T3& a3)
+	{
+		try
+		{
+			BeginMessage(pszCommand);
+			vSend << a1 << a2 << a3;
+			EndMessage();
+		}
+		catch (...)
+		{
+			AbortMessage();
+			throw;
+		}
+	}
+
+	template<typename T1, typename T2, typename T3, typename T4>
+	void PushMessage(const char* pszCommand, const T1& a1, const T2& a2, const T3& a3, const T4& a4)
+	{
+		try
+		{
+			BeginMessage(pszCommand);
+			vSend << a1 << a2 << a3 << a4;
+			EndMessage();
+		}
+		catch (...)
+		{
+			AbortMessage();
+			throw;
+		}
+	}
+
+
+	void PushRequest(const char* pszCommand,
+					 void (*fn)(void*, CDataStream&), void* param1)
+	{
+		uint256 hashReply;
+		RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
+
+		//CRITICAL_BLOCK(cs_mapRequests)
+			mapRequests[hashReply] = CRequestTracker(fn, param1);
+
+		PushMessage(pszCommand, hashReply);
+	}
+
+	template<typename T1>
+	void PushRequest(const char* pszCommand, const T1& a1,
+					 void (*fn)(void*, CDataStream&), void* param1)
+	{
+		uint256 hashReply;
+		RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
+
+		//CRITICAL_BLOCK(cs_mapRequests)
+			mapRequests[hashReply] = CRequestTracker(fn, param1);
+
+		PushMessage(pszCommand, hashReply, a1);
+	}
+
+	template<typename T1, typename T2>
+	void PushRequest(const char* pszCommand, const T1& a1, const T2& a2,
+					 void (*fn)(void*, CDataStream&), void* param1)
+	{
+		uint256 hashReply;
+		RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
+
+		//CRITICAL_BLOCK(cs_mapRequests)
+			mapRequests[hashReply] = CRequestTracker(fn, param1);
+
+		PushMessage(pszCommand, hashReply, a1, a2);
+	}
+
+
+
+	bool IsSubscribed(unsigned int nChannel);
+	void Subscribe(unsigned int nChannel, unsigned int nHops=0);
+	void CancelSubscribe(unsigned int nChannel);
+	void Disconnect();
 };
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+
+inline void RelayInventory(const CInv& inv)
+{
+    // Put on lists to offer to the other nodes
+//    CRITICAL_BLOCK(cs_vNodes)
+
+	//FIXME
+//        foreach(CNode* pnode, vNodes)
+//            pnode->PushInventory(inv);
+}
+
+template<typename T>
+void RelayMessage(const CInv& inv, const T& a)
+{
+    CDataStream ss(SER_NETWORK);
+    ss.reserve(10000);
+    ss << a;
+    RelayMessage(inv, ss);
+}
+
+template<>
+inline void RelayMessage<>(const CInv& inv, const CDataStream& ss)
+{
+	extern std::deque<pair<int64, CInv> > vRelayExpiration;
+	extern map<CInv, CDataStream> mapRelay;;
+//    CRITICAL_BLOCK(cs_mapRelay)
+    {
+        // Expire old relay messages
+        while (!vRelayExpiration.empty() && vRelayExpiration.front().first < GetTime())
+        {
+            mapRelay.erase(vRelayExpiration.front().second);
+            vRelayExpiration.pop_front();
+        }
+
+        // Save original serialized message so newer versions are preserved
+        mapRelay[inv] = ss;
+        vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
+    }
+
+    RelayInventory(inv);
+}
+
+// Templates for the publish and subscription system.
+// The object being published as T& obj needs to have:
+//   a set<unsigned int> setSources member
+//   specializations of AdvertInsert and AdvertErase
+// Currently implemented for CTable and CProduct.
+//
+
+template<typename T>
+void AdvertStartPublish(CNode* pfrom, unsigned int nChannel, unsigned int nHops, T& obj)
+{
+    // Add to sources
+    obj.setSources.insert(pfrom->addr.ip);
+
+    if (!AdvertInsert(obj))
+        return;
+
+    // Relay
+//    CRITICAL_BLOCK(cs_vNodes)
+//    fixme
+//        foreach(CNode* pnode, vNodes)
+//            if (pnode != pfrom && (nHops < PUBLISH_HOPS || pnode->IsSubscribed(nChannel)))
+//                pnode->PushMessage("publish", nChannel, nHops, obj);
+}
+
+template<typename T>
+void AdvertStopPublish(CNode* pfrom, unsigned int nChannel, unsigned int nHops, T& obj)
+{
+    uint256 hash = obj.GetHash();
+
+//    CRITICAL_BLOCK(cs_vNodes)
+//    fixme
+//        foreach(CNode* pnode, vNodes)
+//            if (pnode != pfrom && (nHops < PUBLISH_HOPS || pnode->IsSubscribed(nChannel)))
+//                pnode->PushMessage("pub-cancel", nChannel, nHops, hash);
+
+    AdvertErase(obj);
+}
+
+template<typename T>
+void AdvertRemoveSource(CNode* pfrom, unsigned int nChannel, unsigned int nHops, T& obj)
+{
+    // Remove a source
+    obj.setSources.erase(pfrom->addr.ip);
+
+    // If no longer supported by any sources, cancel it
+    if (obj.setSources.empty())
+        AdvertStopPublish(pfrom, nChannel, nHops, obj);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 
 struct btc_node_ctx {
 	hp_io_ctx  * ioctx;

@@ -13,7 +13,7 @@
 #include "config.h"
 #include "headers.h"
 #include "main.h"
-
+#include <memory>
 #include <set>
 #include <db.h>
 #include <ctime>
@@ -25,6 +25,7 @@
 #include "util.h"
 #include "base58.h"
 #include "db.h"
+#include "market.h"
 #include "hp/sdsinc.h"	//sds
 #include "hp/string_util.h"
 #include "cryptopp/sha.h"
@@ -34,6 +35,7 @@ using std::multimap;
 using std::make_pair;
 using std::runtime_error;
 using std::set;
+using std::auto_ptr;
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -70,7 +72,7 @@ static map<uint160, vector<unsigned char> > mapPubKeys;
 static CKey keyUser;
 
 string strSetDataDir;
-static int nDropMessagesTest = 0;
+int nDropMessagesTest = 0;
 
 // Settings
 static int fGenerateBitcoins;
@@ -94,9 +96,9 @@ static bool fShutdown = false;
 static std::array<bool, 10> vfThreadRunning;
 //vector<CNode*> vNodes;
 static map<vector<unsigned char>, CAddress> mapAddresses;
-static map<CInv, CDataStream> mapRelay;
+map<CInv, CDataStream> mapRelay;
 std::deque<pair<int64, CInv> > vRelayExpiration;
-static map<CInv, int64> mapAlreadyAskedFor;
+map<CInv, int64> mapAlreadyAskedFor;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 //irc.cpp
@@ -596,6 +598,12 @@ bool CTransaction::AcceptTransaction(CTxDB& txdb, bool fCheckInputs, bool* pfMis
     return true;
 }
 
+bool CTransaction::AcceptTransaction(bool fCheckInputs, bool* pfMissingInputs)
+{
+    CTxDB txdb("r");
+    return AcceptTransaction(txdb, fCheckInputs, pfMissingInputs);
+}
+
 
 bool CTransaction::AddToMemoryPool()
 {
@@ -674,6 +682,7 @@ bool CMerkleTx::AcceptTransaction(CTxDB& txdb, bool fCheckInputs)
 
 bool CMerkleTx::AcceptTransaction() { CTxDB txdb("r"); return AcceptTransaction(txdb); }
 
+bool CWalletTx::AcceptWalletTransaction() { CTxDB txdb("r"); return AcceptWalletTransaction(txdb); }
 bool CWalletTx::AcceptWalletTransaction(CTxDB& txdb, bool fCheckInputs)
 {
     //CRITICAL_BLOCK(cs_mapTransactions)
@@ -1368,65 +1377,65 @@ bool CBlock::AcceptBlock()
     return true;
 }
 
-//bool ProcessBlock(CNode* pfrom, CBlock* pblock)
-//{
-//    // Check for duplicate
-//    uint256 hash = pblock->GetHash();
-//    if (mapBlockIndex.count(hash))
-//        return error("ProcessBlock() : already have block %d %s", mapBlockIndex[hash]->nHeight, hash.ToString().substr(0,14).c_str());
-//    if (mapOrphanBlocks.count(hash))
-//        return error("ProcessBlock() : already have block (orphan) %s", hash.ToString().substr(0,14).c_str());
-//
-//    // Preliminary checks
-//    if (!pblock->CheckBlock())
-//    {
-//        delete pblock;
-//        return error("ProcessBlock() : CheckBlock FAILED");
-//    }
-//
-//    // If don't already have its previous block, shunt it off to holding area until we get it
-//    if (!mapBlockIndex.count(pblock->hashPrevBlock))
-//    {
-//        hp_log(std::cout, "ProcessBlock: ORPHAN BLOCK, prev=%s\n", pblock->hashPrevBlock.ToString().substr(0,14).c_str());
-//        mapOrphanBlocks.insert(make_pair(hash, pblock));
-//        mapOrphanBlocksByPrev.insert(make_pair(pblock->hashPrevBlock, pblock));
-//
-//        // Ask this guy to fill in what we're missing
-//        if (pfrom)
-//            pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(pblock));
-//        return true;
-//    }
-//
-//    // Store to disk
-//    if (!pblock->AcceptBlock())
-//    {
-//        delete pblock;
-//        return error("ProcessBlock() : AcceptBlock FAILED");
-//    }
-//    delete pblock;
-//
-//    // Recursively process any orphan blocks that depended on this one
-//    vector<uint256> vWorkQueue;
-//    vWorkQueue.push_back(hash);
-//    for (int i = 0; i < vWorkQueue.size(); i++)
-//    {
-//        uint256 hashPrev = vWorkQueue[i];
-//        for (multimap<uint256, CBlock*>::iterator mi = mapOrphanBlocksByPrev.lower_bound(hashPrev);
-//             mi != mapOrphanBlocksByPrev.upper_bound(hashPrev);
-//             ++mi)
-//        {
-//            CBlock* pblockOrphan = (*mi).second;
-//            if (pblockOrphan->AcceptBlock())
-//                vWorkQueue.push_back(pblockOrphan->GetHash());
-//            mapOrphanBlocks.erase(pblockOrphan->GetHash());
-//            delete pblockOrphan;
-//        }
-//        mapOrphanBlocksByPrev.erase(hashPrev);
-//    }
-//
-//    hp_log(std::cout, "ProcessBlock: ACCEPTED\n");
-//    return true;
-//}
+bool ProcessBlock(CNode* pfrom, CBlock* pblock)
+{
+    // Check for duplicate
+    uint256 hash = pblock->GetHash();
+    if (mapBlockIndex.count(hash))
+        return error("ProcessBlock() : already have block %d %s", mapBlockIndex[hash]->nHeight, hash.ToString().substr(0,14).c_str());
+    if (mapOrphanBlocks.count(hash))
+        return error("ProcessBlock() : already have block (orphan) %s", hash.ToString().substr(0,14).c_str());
+
+    // Preliminary checks
+    if (!pblock->CheckBlock())
+    {
+        delete pblock;
+        return error("ProcessBlock() : CheckBlock FAILED");
+    }
+
+    // If don't already have its previous block, shunt it off to holding area until we get it
+    if (!mapBlockIndex.count(pblock->hashPrevBlock))
+    {
+        hp_log(std::cout, "ProcessBlock: ORPHAN BLOCK, prev=%s\n", pblock->hashPrevBlock.ToString().substr(0,14).c_str());
+        mapOrphanBlocks.insert(make_pair(hash, pblock));
+        mapOrphanBlocksByPrev.insert(make_pair(pblock->hashPrevBlock, pblock));
+
+        // Ask this guy to fill in what we're missing
+        if (pfrom)
+            pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(pblock));
+        return true;
+    }
+
+    // Store to disk
+    if (!pblock->AcceptBlock())
+    {
+        delete pblock;
+        return error("ProcessBlock() : AcceptBlock FAILED");
+    }
+    delete pblock;
+
+    // Recursively process any orphan blocks that depended on this one
+    vector<uint256> vWorkQueue;
+    vWorkQueue.push_back(hash);
+    for (int i = 0; i < vWorkQueue.size(); i++)
+    {
+        uint256 hashPrev = vWorkQueue[i];
+        for (multimap<uint256, CBlock*>::iterator mi = mapOrphanBlocksByPrev.lower_bound(hashPrev);
+             mi != mapOrphanBlocksByPrev.upper_bound(hashPrev);
+             ++mi)
+        {
+            CBlock* pblockOrphan = (*mi).second;
+            if (pblockOrphan->AcceptBlock())
+                vWorkQueue.push_back(pblockOrphan->GetHash());
+            mapOrphanBlocks.erase(pblockOrphan->GetHash());
+            delete pblockOrphan;
+        }
+        mapOrphanBlocksByPrev.erase(hashPrev);
+    }
+
+    hp_log(std::cout, "ProcessBlock: ACCEPTED\n");
+    return true;
+}
 //
 //template<typename Stream>
 //bool ScanMessageStart(Stream& s)
@@ -1920,18 +1929,19 @@ void PrintBlockTree()
 //
 
 //
-//bool AlreadyHave(CTxDB& txdb, const CInv& inv)
-//{
-//    switch (inv.type)
-//    {
-//    case MSG_TX:        return mapTransactions.count(inv.hash) || txdb.ContainsTx(inv.hash);
-//    case MSG_BLOCK:     return mapBlockIndex.count(inv.hash) || mapOrphanBlocks.count(inv.hash);
-//    case MSG_REVIEW:    return true;
-//    case MSG_PRODUCT:   return mapProducts.count(inv.hash);
-//    }
-//    // Don't know what it is, just say we already got one
-//    return true;
-//}
+bool AlreadyHave(CTxDB& txdb, const CInv& inv)
+{
+	extern map<uint256, CProduct> mapProducts;;
+    switch (inv.type)
+    {
+    case MSG_TX:        return mapTransactions.count(inv.hash) || txdb.ContainsTx(inv.hash);
+    case MSG_BLOCK:     return mapBlockIndex.count(inv.hash) || mapOrphanBlocks.count(inv.hash);
+    case MSG_REVIEW:    return true;
+    case MSG_PRODUCT:   return mapProducts.count(inv.hash);
+    }
+    // Don't know what it is, just say we already got one
+    return true;
+}
 //
 //
 //
@@ -2105,66 +2115,66 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     }
 
 
-//    else if (strCommand == "inv")
-//    {
-//        vector<CInv> vInv;
-//        vRecv >> vInv;
-//
-//        CTxDB txdb("r");
-//        foreach(const CInv& inv, vInv)
-//        {
-//            if (fShutdown)
-//                return true;
-//            pfrom->AddInventoryKnown(inv);
-//
-//            bool fAlreadyHave = AlreadyHave(txdb, inv);
-//            printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
-//
-//            if (!fAlreadyHave)
-//                pfrom->AskFor(inv);
-//            else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
-//                pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
-//        }
-//    }
-//
-//
-//    else if (strCommand == "getdata")
-//    {
-//        vector<CInv> vInv;
-//        vRecv >> vInv;
-//
-//        foreach(const CInv& inv, vInv)
-//        {
-//            if (fShutdown)
-//                return true;
-//            printf("received getdata for: %s\n", inv.ToString().c_str());
-//
-//            if (inv.type == MSG_BLOCK)
-//            {
-//                // Send block from disk
-//                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
-//                if (mi != mapBlockIndex.end())
-//                {
-//                    //// could optimize this to send header straight from blockindex for client
-//                    CBlock block;
-//                    block.ReadFromDisk((*mi).second, !pfrom->fClient);
-//                    pfrom->PushMessage("block", block);
-//                }
-//            }
-//            else if (inv.IsKnownType())
-//            {
-//                // Send stream from relay memory
+    else if (strCommand == "inv")
+    {
+        vector<CInv> vInv;
+        vRecv >> vInv;
+
+        CTxDB txdb("r");
+        foreach(const CInv& inv, vInv)
+        {
+            if (fShutdown)
+                return true;
+            pfrom->AddInventoryKnown(inv);
+
+            bool fAlreadyHave = AlreadyHave(txdb, inv);
+            printf("  got inventory: %s  %s\n", inv.ToString().c_str(), fAlreadyHave ? "have" : "new");
+
+            if (!fAlreadyHave)
+                pfrom->AskFor(inv);
+            else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash))
+                pfrom->PushMessage("getblocks", CBlockLocator(pindexBest), GetOrphanRoot(mapOrphanBlocks[inv.hash]));
+        }
+    }
+
+
+    else if (strCommand == "getdata")
+    {
+        vector<CInv> vInv;
+        vRecv >> vInv;
+
+        foreach(const CInv& inv, vInv)
+        {
+            if (fShutdown)
+                return true;
+            printf("received getdata for: %s\n", inv.ToString().c_str());
+
+            if (inv.type == MSG_BLOCK)
+            {
+                // Send block from disk
+                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(inv.hash);
+                if (mi != mapBlockIndex.end())
+                {
+                    //// could optimize this to send header straight from blockindex for client
+                    CBlock block;
+                    block.ReadFromDisk((*mi).second, !pfrom->fClient);
+                    pfrom->PushMessage("block", block);
+                }
+            }
+            else if (inv.IsKnownType())
+            {
+                // Send stream from relay memory
 //                CRITICAL_BLOCK(cs_mapRelay)
-//                {
-//                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
-//                    if (mi != mapRelay.end())
-//                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
-//                }
-//            }
-//        }
-//    }
-//
-//
+                {
+                    map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
+                    if (mi != mapRelay.end())
+                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                }
+            }
+        }
+    }
+
+
     else if (strCommand == "getblocks")
     {
         CBlockLocator locator;
@@ -2198,186 +2208,186 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             }
         }
     }
-//
-//
-//    else if (strCommand == "tx")
-//    {
-//        vector<uint256> vWorkQueue;
-//        CDataStream vMsg(vRecv);
-//        CTransaction tx;
-//        vRecv >> tx;
-//
-//        CInv inv(MSG_TX, tx.GetHash());
-//        pfrom->AddInventoryKnown(inv);
-//
-//        bool fMissingInputs = false;
-//        if (tx.AcceptTransaction(true, &fMissingInputs))
-//        {
-//            AddToWalletIfMine(tx, NULL);
-//            RelayMessage(inv, vMsg);
-//            mapAlreadyAskedFor.erase(inv);
-//            vWorkQueue.push_back(inv.hash);
-//
-//            // Recursively process any orphan transactions that depended on this one
-//            for (int i = 0; i < vWorkQueue.size(); i++)
-//            {
-//                uint256 hashPrev = vWorkQueue[i];
-//                for (multimap<uint256, CDataStream*>::iterator mi = mapOrphanTransactionsByPrev.lower_bound(hashPrev);
-//                     mi != mapOrphanTransactionsByPrev.upper_bound(hashPrev);
-//                     ++mi)
-//                {
-//                    const CDataStream& vMsg = *((*mi).second);
-//                    CTransaction tx;
-//                    CDataStream(vMsg) >> tx;
-//                    CInv inv(MSG_TX, tx.GetHash());
-//
-//                    if (tx.AcceptTransaction(true))
-//                    {
-//                        printf("   accepted orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-//                        AddToWalletIfMine(tx, NULL);
-//                        RelayMessage(inv, vMsg);
-//                        mapAlreadyAskedFor.erase(inv);
-//                        vWorkQueue.push_back(inv.hash);
-//                    }
-//                }
-//            }
-//
-//            foreach(uint256 hash, vWorkQueue)
-//                EraseOrphanTx(hash);
-//        }
-//        else if (fMissingInputs)
-//        {
-//            printf("storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
-//            AddOrphanTx(vMsg);
-//        }
-//    }
-//
-//
-//    else if (strCommand == "review")
-//    {
-//        CDataStream vMsg(vRecv);
-//        CReview review;
-//        vRecv >> review;
-//
-//        CInv inv(MSG_REVIEW, review.GetHash());
-//        pfrom->AddInventoryKnown(inv);
-//
-//        if (review.AcceptReview())
-//        {
-//            // Relay the original message as-is in case it's a higher version than we know how to parse
-//            RelayMessage(inv, vMsg);
-//            mapAlreadyAskedFor.erase(inv);
-//        }
-//    }
-//
-//
-//    else if (strCommand == "block")
-//    {
-//        auto_ptr<CBlock> pblock(new CBlock);
-//        vRecv >> *pblock;
-//
-//        //// debug print
-//        printf("received block:\n"); pblock->print();
-//
-//        CInv inv(MSG_BLOCK, pblock->GetHash());
-//        pfrom->AddInventoryKnown(inv);
-//
-//        if (ProcessBlock(pfrom, pblock.release()))
-//            mapAlreadyAskedFor.erase(inv);
-//    }
-//
-//
-//    else if (strCommand == "getaddr")
-//    {
-//        pfrom->vAddrToSend.clear();
-//        int64 nSince = GetAdjustedTime() - 5 * 24 * 60 * 60; // in the last 5 days
+
+
+    else if (strCommand == "tx")
+    {
+        vector<uint256> vWorkQueue;
+        CDataStream vMsg(vRecv);
+        CTransaction tx;
+        vRecv >> tx;
+
+        CInv inv(MSG_TX, tx.GetHash());
+        pfrom->AddInventoryKnown(inv);
+
+        bool fMissingInputs = false;
+        if (tx.AcceptTransaction(true, &fMissingInputs))
+        {
+            AddToWalletIfMine(tx, NULL);
+            RelayMessage(inv, vMsg);
+            mapAlreadyAskedFor.erase(inv);
+            vWorkQueue.push_back(inv.hash);
+
+            // Recursively process any orphan transactions that depended on this one
+            for (int i = 0; i < vWorkQueue.size(); i++)
+            {
+                uint256 hashPrev = vWorkQueue[i];
+                for (multimap<uint256, CDataStream*>::iterator mi = mapOrphanTransactionsByPrev.lower_bound(hashPrev);
+                     mi != mapOrphanTransactionsByPrev.upper_bound(hashPrev);
+                     ++mi)
+                {
+                    const CDataStream& vMsg = *((*mi).second);
+                    CTransaction tx;
+                    CDataStream(vMsg) >> tx;
+                    CInv inv(MSG_TX, tx.GetHash());
+
+                    if (tx.AcceptTransaction(true))
+                    {
+                        printf("   accepted orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
+                        AddToWalletIfMine(tx, NULL);
+                        RelayMessage(inv, vMsg);
+                        mapAlreadyAskedFor.erase(inv);
+                        vWorkQueue.push_back(inv.hash);
+                    }
+                }
+            }
+
+            foreach(uint256 hash, vWorkQueue)
+                EraseOrphanTx(hash);
+        }
+        else if (fMissingInputs)
+        {
+            printf("storing orphan tx %s\n", inv.hash.ToString().substr(0,6).c_str());
+            AddOrphanTx(vMsg);
+        }
+    }
+
+
+    else if (strCommand == "review")
+    {
+        CDataStream vMsg(vRecv);
+        CReview review;
+        vRecv >> review;
+
+        CInv inv(MSG_REVIEW, review.GetHash());
+        pfrom->AddInventoryKnown(inv);
+
+        if (review.AcceptReview())
+        {
+            // Relay the original message as-is in case it's a higher version than we know how to parse
+            RelayMessage(inv, vMsg);
+            mapAlreadyAskedFor.erase(inv);
+        }
+    }
+
+
+    else if (strCommand == "block")
+    {
+        auto_ptr<CBlock> pblock(new CBlock);
+        vRecv >> *pblock;
+
+        //// debug print
+        printf("received block:\n"); pblock->print();
+
+        CInv inv(MSG_BLOCK, pblock->GetHash());
+        pfrom->AddInventoryKnown(inv);
+
+        if (ProcessBlock(pfrom, pblock.release()))
+            mapAlreadyAskedFor.erase(inv);
+    }
+
+
+    else if (strCommand == "getaddr")
+    {
+        pfrom->vAddrToSend.clear();
+        int64 nSince = GetAdjustedTime() - 5 * 24 * 60 * 60; // in the last 5 days
 //        CRITICAL_BLOCK(cs_mapAddresses)
-//        {
-//            unsigned int nSize = mapAddresses.size();
-//            foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
-//            {
-//                if (fShutdown)
-//                    return true;
-//                const CAddress& addr = item.second;
-//                //// will need this if we lose IRC
-//                //if (addr.nTime > nSince || (rand() % nSize) < 500)
-//                if (addr.nTime > nSince)
-//                    pfrom->vAddrToSend.push_back(addr);
-//            }
-//        }
-//    }
-//
-//
-//    else if (strCommand == "checkorder")
-//    {
-//        uint256 hashReply;
-//        CWalletTx order;
-//        vRecv >> hashReply >> order;
-//
-//        /// we have a chance to check the order here
-//
-//        // Keep giving the same key to the same ip until they use it
-//        if (!mapReuseKey.count(pfrom->addr.ip))
-//            mapReuseKey[pfrom->addr.ip] = GenerateNewKey();
-//
-//        // Send back approval of order and pubkey to use
-//        CScript scriptPubKey;
-//        scriptPubKey << mapReuseKey[pfrom->addr.ip] << OP_CHECKSIG;
-//        pfrom->PushMessage("reply", hashReply, (int)0, scriptPubKey);
-//    }
-//
-//
-//    else if (strCommand == "submitorder")
-//    {
-//        uint256 hashReply;
-//        CWalletTx wtxNew;
-//        vRecv >> hashReply >> wtxNew;
-//
-//        // Broadcast
-//        if (!wtxNew.AcceptWalletTransaction())
-//        {
-//            pfrom->PushMessage("reply", hashReply, (int)1);
-//            return error("submitorder AcceptWalletTransaction() failed, returning error 1");
-//        }
-//        wtxNew.fTimeReceivedIsTxTime = true;
-//        AddToWallet(wtxNew);
-//        wtxNew.RelayWalletTransaction();
-//        mapReuseKey.erase(pfrom->addr.ip);
-//
-//        // Send back confirmation
-//        pfrom->PushMessage("reply", hashReply, (int)0);
-//    }
-//
-//
-//    else if (strCommand == "reply")
-//    {
-//        uint256 hashReply;
-//        vRecv >> hashReply;
-//
-//        CRequestTracker tracker;
+        {
+            unsigned int nSize = mapAddresses.size();
+            foreach(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
+            {
+                if (fShutdown)
+                    return true;
+                const CAddress& addr = item.second;
+                //// will need this if we lose IRC
+                //if (addr.nTime > nSince || (rand() % nSize) < 500)
+                if (addr.nTime > nSince)
+                    pfrom->vAddrToSend.push_back(addr);
+            }
+        }
+    }
+
+
+    else if (strCommand == "checkorder")
+    {
+        uint256 hashReply;
+        CWalletTx order;
+        vRecv >> hashReply >> order;
+
+        /// we have a chance to check the order here
+
+        // Keep giving the same key to the same ip until they use it
+        if (!mapReuseKey.count(pfrom->addr.ip))
+            mapReuseKey[pfrom->addr.ip] = GenerateNewKey();
+
+        // Send back approval of order and pubkey to use
+        CScript scriptPubKey;
+        scriptPubKey << mapReuseKey[pfrom->addr.ip] << OP_CHECKSIG;
+        pfrom->PushMessage("reply", hashReply, (int)0, scriptPubKey);
+    }
+
+
+    else if (strCommand == "submitorder")
+    {
+        uint256 hashReply;
+        CWalletTx wtxNew;
+        vRecv >> hashReply >> wtxNew;
+
+        // Broadcast
+        if (!wtxNew.AcceptWalletTransaction())
+        {
+            pfrom->PushMessage("reply", hashReply, (int)1);
+            return error("submitorder AcceptWalletTransaction() failed, returning error 1");
+        }
+        wtxNew.fTimeReceivedIsTxTime = true;
+        AddToWallet(wtxNew);
+        wtxNew.RelayWalletTransaction();
+        mapReuseKey.erase(pfrom->addr.ip);
+
+        // Send back confirmation
+        pfrom->PushMessage("reply", hashReply, (int)0);
+    }
+
+
+    else if (strCommand == "reply")
+    {
+        uint256 hashReply;
+        vRecv >> hashReply;
+
+        CRequestTracker tracker;
 //        CRITICAL_BLOCK(pfrom->cs_mapRequests)
-//        {
-//            map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
-//            if (mi != pfrom->mapRequests.end())
-//            {
-//                tracker = (*mi).second;
-//                pfrom->mapRequests.erase(mi);
-//            }
-//        }
-//        if (!tracker.IsNull())
-//            tracker.fn(tracker.param1, vRecv);
-//    }
-//
-//
-//    else
-//    {
-//        // Ignore unknown commands for extensibility
-//        printf("ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
-//    }
-//
-//
-//    if (!vRecv.empty())
-//        printf("ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
+        {
+            map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
+            if (mi != pfrom->mapRequests.end())
+            {
+                tracker = (*mi).second;
+                pfrom->mapRequests.erase(mi);
+            }
+        }
+        if (!tracker.IsNull())
+            tracker.fn(tracker.param1, vRecv);
+    }
+
+
+    else
+    {
+        // Ignore unknown commands for extensibility
+        printf("ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
+    }
+
+
+    if (!vRecv.empty())
+        printf("ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
 
     return true;
 }
