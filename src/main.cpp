@@ -3612,6 +3612,12 @@ int main(int argc, char ** argv)
     string strErrors;
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
+	hp_ioopt opt = {
+#ifdef _MSC_VER
+	.wm_user = 900, /* WM_USER + N */
+	.hwnd = 0		/* hwnd */
+#endif /* _MSC_VER */
+	};
 	/* HTTP server */
 	hp_http httpobj, * http = &httpobj;
 	/* BTC node server */
@@ -3773,7 +3779,7 @@ int main(int argc, char ** argv)
 	if(!hp_sock_is_valid(bctx_listenfd)) return_(-9);
 	if(!hp_sock_is_valid(http_listenfd)) return_(-10);
 
-	if(hp_io_init(ioctx) != 0) return_(-11);
+	if(hp_io_init(ioctx, opt) != 0) return_(-11);
 	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) return_(-12);
 	if(btc_init(bctx, ioctx, bctx_listenfd, 0, 0) != 0) return_(-13);
 
