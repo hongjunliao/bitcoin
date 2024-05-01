@@ -13,9 +13,13 @@
 
 1. 添加依赖,参见 [deps/README.md](/deps/README.md)
 2. 使用cmake构建：`mkdir build && cd build && cmake .. && make`
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 3. Debug构建: `make .. -DCMAKE_BUILD_TYPE=Debug`
 
 #### 进度
 
 1. 参见[src/](/src)目录查看移植情况，在新平台能编译通过的文件通常在src/目录会有对应同名文件
 2. 参见[test/](/test)目录以查看测试情况
+   ./scripts/startnodes.sh addr.txt
+   ./build/bitcoin-v0.1.5 --datadir test/8336/
+

@@ -11,7 +11,7 @@
 #/////////////////////////////////////////////////////////////////////////////////////////////
 #!/bin/bash
 
-loc=bitcoin-v0.1.5/$(basename "$0")
+loc="$0"
 filename=$1
 n_chld=0
 
@@ -26,18 +26,18 @@ cleanup() {
 trap cleanup EXIT
 
 ################################################################################################
-echo "" > build/nodes.log
+echo "" > test/nodes.log
 while IFS=: read -r _ dir || [[ -n $line ]]; do
-	[ -d "`pwd`/build/$dir" ] || mkdir `pwd`/build/$dir
-	ln -sf `pwd`/addr.txt `pwd`/build/$dir/
-	[ -f "`pwd`/build/$dir/bitcoin.conf" ] || cp -t `pwd`/build/$dir/ `pwd`/bitcoin.conf
-#	[ -f "`pwd`/build/$dir/blkindex.dat" ] || cp -t `pwd`/build/$dir/ `pwd`/addr.dat  `pwd`/blkindex.dat  `pwd`/wallet.dat
-	if [ -d "build/$dir/" ]; then
-	    echo "$loc: ./build/bitcoin-v0.1.5 --datadir "build/$dir/""
-	    ./build/bitcoin-v0.1.5 --datadir "build/$dir/" >> build/nodes.log  2>&1 &
+	[ -d "`pwd`/test/$dir" ] || mkdir `pwd`/test/$dir
+	ln -sf `pwd`/addr.txt `pwd`/test/$dir/
+	[ -f "`pwd`/test/$dir/bitcoin.conf" ] || cp -t `pwd`/test/$dir/ `pwd`/bitcoin.conf
+#	[ -f "`pwd`/test/$dir/blkindex.dat" ] || cp -t `pwd`/test/$dir/ `pwd`/addr.dat  `pwd`/blkindex.dat  `pwd`/wallet.dat
+	if [ -d "test/$dir/" ]; then
+	    echo "$loc: ./build/bitcoin-v0.1.5 --datadir "test/$dir/""
+	    ./build/bitcoin-v0.1.5 --datadir "test/$dir/" >> test/nodes.log  2>&1 &
 	    ((n_chld++))
 	else
-	    echo "$loc: init build/$dir/ first"
+	    echo "$loc: init test/$dir/ first"
 	fi
 
 done < "$filename"

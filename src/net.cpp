@@ -166,7 +166,7 @@ static hp_io_t *  btc_node_in_on_new(hp_io_t * cio, hp_sock_t fd)
 	if(hp_log_level > 0){
 		char buf[64] = "";
 		hp_log(std::cout, "%s: New BTC connection from '%s', total=%d\n", __FUNCTION__
-				, get_ipport_cstr2(&cio->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
+				, hp_addr4name(&cio->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
 	}
 
 	int64 nTime = (true/*fInbound*/ ? GetAdjustedTime() : GetTime());
@@ -285,7 +285,7 @@ static void btc_node_in_on_delete(hp_io_t * io, int err, char const * errstr)
 	if(hp_log_level > 0){
 		char buf[64] = "";
 		hp_log(std::cout, "%s: Delete BTC connection '%s', %d/'%s', total=%d\n", __FUNCTION__
-				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
+				, hp_addr4name(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
 	}
 
 	listDelNode(bctx->inlist, node);
@@ -299,8 +299,8 @@ static hp_iohdl s_btc_in_node_hdl = {
 	.on_new = btc_node_in_on_new,
 	.on_parse = btc_node_on_parse,
 	.on_dispatch = btc_node_on_dispatch,
-	.on_delete = btc_node_in_on_delete,
-	.on_loop = btc_node_in_on_loop
+	.on_loop = btc_node_in_on_loop,
+	.on_delete = btc_node_in_on_delete
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -317,7 +317,7 @@ static void btc_node_out_on_delete(hp_io_t * io, int err, char const * errstr)
 	if(hp_log_level > 0){
 		char buf[64] = "";
 		hp_log(std::cout, "%s: Disconnected from '%s', %d/'%s', total=%d\n", __FUNCTION__
-				, get_ipport_cstr2(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
+				, hp_addr4name(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
 	}
 	listDelNode(bctx->outlist, node);
 	btc_node_uninit(outnode);
@@ -334,8 +334,8 @@ static hp_iohdl s_btc_out_node_hdl = {
 	.on_new = 0,
 	.on_parse = btc_node_on_parse,
 	.on_dispatch = btc_node_on_dispatch,
-	.on_delete = btc_node_out_on_delete,
-	.on_loop = btc_node_out_on_loop
+	.on_loop = btc_node_out_on_loop,
+	.on_delete = btc_node_out_on_delete
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////

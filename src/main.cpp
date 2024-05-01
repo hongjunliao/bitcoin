@@ -3766,18 +3766,16 @@ int main(int argc, char ** argv)
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
-	bctx_listenfd = hp_net_listen(cfgi("btc.port"));
+	bctx_listenfd = hp_tcp_listen(cfgi("btc.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
 		hp_log(std::cerr, "%s: unable to listen on %d for BTC node\n", __FUNCTION__, cfgi("btc.port"));
 		return_(-7);
 	}
-	http_listenfd = hp_net_listen(cfgi("http.port"));
+	http_listenfd = hp_tcp_listen(cfgi("http.port"));
 	if(!hp_sock_is_valid(bctx_listenfd)){
 		hp_log(std::cerr, "%s: unable to listen on %d for HTTP\n", __FUNCTION__, cfgi("http.port"));
 		return_(-8);
 	}
-	if(!hp_sock_is_valid(bctx_listenfd)) return_(-9);
-	if(!hp_sock_is_valid(http_listenfd)) return_(-10);
 
 	if(hp_io_init(ioctx, opt) != 0) return_(-11);
 	if(hp_http_init(http, ioctx, http_listenfd, 0, btc_http_process) != 0) return_(-12);
@@ -3795,8 +3793,8 @@ int main(int argc, char ** argv)
 	btc_uninit(bctx);
 	hp_http_uninit(http);
 	hp_io_uninit(ioctx);
-	hp_sock_close(http_listenfd);
-	hp_sock_close(bctx_listenfd);
+	hp_close(http_listenfd);
+	hp_close(bctx_listenfd);
 	cfg("#unload");
 
 #ifndef NDEBUG
@@ -3805,7 +3803,7 @@ int main(int argc, char ** argv)
 
 exit_:
 #ifndef NDEBUG
-	hp_log(rc == 0? stdout : stderr, "%s: exited with %d\n", __FUNCTION__, rc);
+	hp_log(rc == 0? std::cout : std::cerr, "%s: exited with %d\n", __FUNCTION__, rc);
 #endif //#ifndef NDEBUG
 
 	return rc;

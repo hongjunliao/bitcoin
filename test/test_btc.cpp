@@ -34,8 +34,8 @@
 #include "hp/hp_config.h"
 #include "sds/sds.h"
 /////////////////////////////////////////////////////////////////////////////////////////////
-#define cfg hp_config_test
-#define cfgi(k) atoi(cfg(k))
+#define cfgt hp_config_test
+#define cfgti(k) atoi(cfgt(k))
 int test_btc_config_main(int argc, char ** argv);
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -47,11 +47,11 @@ int test_btc_main(int argc, char ** argv)
 		hp_log(std::cout, "%s\n", std::string("hello"));
 	}
 	{
-		if(cfgi("libhp.runtest")){
+		if(cfgti("libhp.runtest")){
 			rc = libhp_all_tests_main(argc, argv); assert(rc == 0);
 		}
 	}
-	if(!cfgi("btc.runtest"))
+	if(!cfgti("btc.runtest"))
 		goto done;
 	{
 		rc = test_btc_config_main(argc, argv); assert(rc == 0);
@@ -121,7 +121,7 @@ int test_btc_main(int argc, char ** argv)
 		LoadWallet();
 		SetAddressBookName("192.168.1.1", "host1");
 	}
-	assert(cfgi("#unload") == 0);
+	assert(cfgti("#unload") == 0);
 done:
 	hp_log(std::cout, "%s done\n", __FUNCTION__);
 	return 0;
