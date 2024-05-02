@@ -91,7 +91,7 @@ int btc_send(btc_node * outnode, char const * hdr_
 			[](void * msg){ assert(msg); delete (btc_msg *)msg; }, msg);
 
 #ifndef NDEBUG
-	hp_log(std::cout, "%s: sent message: %p/'%s'/%d\n", __FUNCTION__, msg, hdr_, msg->ds.size());
+	hp_log(std::cout, "%s: => %p/'%s'/%d\n", __FUNCTION__, msg, hdr_, msg->ds.size());
 #endif
 
 	if(!((rc) == 0)){ delete (msg); }
@@ -124,18 +124,6 @@ void btc_node_uninit(btc_node * node)
 
 	int rc;
 	btc_node_ctx * ioctx = node->bctx;
-}
-
-
-static int btc_node_loop(btc_node * io)
-{
-	assert(io && io->bctx);
-	int rc = 0;
-goto exit_;
-//	btc_node_ctx * ioctx = io->bctx;
-//	btc_node_msghdr * rmsg = 0;
-exit_:
-	return rc;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -268,9 +256,16 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 
 static int btc_node_in_on_loop(hp_io_t * io)
 {
+	assert(io);
+	int rc = 0;
 	if(io->iohdl.on_new)
 		return 0;
-	return btc_node_loop((btc_node *)io);
+
+	auto node = (btc_node *)io;
+	bool SendMessages(CNode* pto);
+	SendMessages(node);
+
+	return rc;
 }
 
 static void btc_node_in_on_delete(hp_io_t * io, int err, char const * errstr)
@@ -358,7 +353,6 @@ int btc_init(btc_node_ctx * bctx
 	bctx->outlist = listCreate();
 
 	bctx->listenio.user = bctx;
-	bctx->listenio.iohdl.on_loop = 0;
 
 	return rc;
 }

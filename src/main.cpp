@@ -89,7 +89,7 @@ static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 //
 bool fClient = false;
 uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
-CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
+CAddress addrLocalHost("137.134.23.23", nLocalServices);
 //CNode nodeLocalHost(INVALID_SOCKET, CAddress("127.0.0.1", nLocalServices));
 //CNode* pnodeLocalHost = &nodeLocalHost;
 static bool fShutdown = false;
@@ -2032,10 +2032,10 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
 	int rc;
     static map<unsigned int, vector<unsigned char> > mapReuseKey;
-//    printf("received: %-12s (%d bytes)  ", strCommand.c_str(), vRecv.size());
-//    for (int i = 0; i < std::min((int)vRecv.size(), 20); i++)
-//        printf("%02x ", vRecv[i] & 0xff);
-//    printf("\n");
+    hp_log(std::cout, "%s: <= '%s' (%d bytes)  ", __FUNCTION__, strCommand.c_str(), vRecv.size());
+    for (int i = 0; i < std::min((int)vRecv.size(), 20); i++)
+        printf("%02x ", vRecv[i] & 0xff);
+    printf("\n");
     if (nDropMessagesTest > 0 && GetRand(nDropMessagesTest) == 0)
     {
         printf("dropmessages DROPPING RECV MESSAGE\n");
@@ -2055,18 +2055,18 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         if (pfrom->nVersion == 0)
             return false;
 
-//        pfrom->vSend.SetVersion(min(pfrom->nVersion, VERSION));
-//        pfrom->vRecv.SetVersion(min(pfrom->nVersion, VERSION));
-//
-//        pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
-//        if (pfrom->fClient)
-//        {
-//            pfrom->vSend.nType |= SER_BLOCKHEADERONLY;
-//            pfrom->vRecv.nType |= SER_BLOCKHEADERONLY;
-//        }
-//
-//        AddTimeData(pfrom->addr.ip, nTime);
-//
+        pfrom->vSend.SetVersion(hp_min(pfrom->nVersion, VERSION));
+        pfrom->vRecv.SetVersion(hp_min(pfrom->nVersion, VERSION));
+
+        pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
+        if (pfrom->fClient)
+        {
+            pfrom->vSend.nType |= SER_BLOCKHEADERONLY;
+            pfrom->vRecv.nType |= SER_BLOCKHEADERONLY;
+        }
+
+        AddTimeData(pfrom->addr.ip, nTime);
+
         // Ask the first connected node for block updates
         static bool fAskedForBlocks;
         if (!fAskedForBlocks/* && !pfrom->fClient*/)
@@ -2077,8 +2077,8 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 			if(!(rc == 0)){ return false; }
         }
 
-//        printf("version message: %s has version %d, addrMe=%s\n"
-//        , pfrom->addr.ToString().c_str(), pfrom->nVersion, addrMe.ToString().c_str());
+        hp_log(std::cout, "version message: %s has version %d, addrMe=%s\n"
+        , pfrom->addr.ToString().c_str(), pfrom->nVersion, addrMe.ToString().c_str());
     }
 
     else if (pfrom->nVersion == 0)
@@ -2391,70 +2391,73 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     return true;
 }
-//
-//bool SendMessages(CNode* pto)
-//{
+
+bool SendMessages(CNode* pto)
+{
+	int rc;
 //    CheckForShutdown(2);
-//    //CRITICAL_BLOCK(cs_main)
-//    {
-//        // Don't send anything until we get their version message
-//        if (pto->nVersion == 0)
-//            return true;
-//
-//
-//        //
-//        // Message: addr
-//        //
-//        vector<CAddress> vAddrToSend;
-//        vAddrToSend.reserve(pto->vAddrToSend.size());
-//        foreach(const CAddress& addr, pto->vAddrToSend)
-//            if (!pto->setAddrKnown.count(addr))
-//                vAddrToSend.push_back(addr);
-//        pto->vAddrToSend.clear();
-//        if (!vAddrToSend.empty())
+    //CRITICAL_BLOCK(cs_main)
+    {
+        // Don't send anything until we get their version message
+        if (pto->nVersion == 0)
+            return true;
+
+
+        //
+        // Message: addr
+        //
+        vector<CAddress> vAddrToSend;
+        vAddrToSend.reserve(pto->vAddrToSend.size());
+        foreach(const CAddress& addr, pto->vAddrToSend)
+            if (!pto->setAddrKnown.count(addr))
+                vAddrToSend.push_back(addr);
+        pto->vAddrToSend.clear();
+        if (!vAddrToSend.empty()){
 //            pto->PushMessage("addr", vAddrToSend);
-//
-//
-//        //
-//        // Message: inventory
-//        //
-//        vector<CInv> vInventoryToSend;
-//        //CRITICAL_BLOCK(pto->cs_inventory)
-//        {
-//            vInventoryToSend.reserve(pto->vInventoryToSend.size());
-//            foreach(const CInv& inv, pto->vInventoryToSend)
-//            {
-//                // returns true if wasn't already contained in the set
-//                if (pto->setInventoryKnown.insert(inv).second)
-//                    vInventoryToSend.push_back(inv);
-//            }
-//            pto->vInventoryToSend.clear();
-//            pto->setInventoryKnown2.clear();
-//        }
-//        if (!vInventoryToSend.empty())
-//            pto->PushMessage("inv", vInventoryToSend);
-//
-//
-//        //
-//        // Message: getdata
-//        //
-//        vector<CInv> vAskFor;
-//        int64 nNow = GetTime() * 1000000;
-//        CTxDB txdb("r");
-//        while (!pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow)
-//        {
-//            const CInv& inv = (*pto->mapAskFor.begin()).second;
-//            hp_log(std::cout, "sending getdata: %s\n", inv.ToString().c_str());
-//            if (!AlreadyHave(txdb, inv))
-//                vAskFor.push_back(inv);
-//            pto->mapAskFor.erase(pto->mapAskFor.begin());
-//        }
-//        if (!vAskFor.empty())
-//            pto->PushMessage("getdata", vAskFor);
-//
-//    }
-//    return true;
-//}
+			rc  = btc_send(pto, "addr", [&](CDataStream& ds){ ds << vAddrToSend; });
+        }
+        return true;
+
+        //
+        // Message: inventory
+        //
+        vector<CInv> vInventoryToSend;
+        //CRITICAL_BLOCK(pto->cs_inventory)
+        {
+            vInventoryToSend.reserve(pto->vInventoryToSend.size());
+            foreach(const CInv& inv, pto->vInventoryToSend)
+            {
+                // returns true if wasn't already contained in the set
+                if (pto->setInventoryKnown.insert(inv).second)
+                    vInventoryToSend.push_back(inv);
+            }
+            pto->vInventoryToSend.clear();
+            pto->setInventoryKnown2.clear();
+        }
+        if (!vInventoryToSend.empty())
+            pto->PushMessage("inv", vInventoryToSend);
+
+
+        //
+        // Message: getdata
+        //
+        vector<CInv> vAskFor;
+        int64 nNow = GetTime() * 1000000;
+        CTxDB txdb("r");
+        while (!pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow)
+        {
+            const CInv& inv = (*pto->mapAskFor.begin()).second;
+            hp_log(std::cout, "sending getdata: %s\n", inv.ToString().c_str());
+            if (!AlreadyHave(txdb, inv))
+                vAskFor.push_back(inv);
+            pto->mapAskFor.erase(pto->mapAskFor.begin());
+        }
+        if (!vAskFor.empty())
+            pto->PushMessage("getdata", vAskFor);
+
+    }
+    return true;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2515,9 +2518,9 @@ bool BitcoinMiner()
     CKey key;
     key.MakeNewKey();
     CBigNum bnExtraNonce = 0;
-    while (0/*fGenerateBitcoins*/)
+    if (1/*fGenerateBitcoins*/)
     {
-        sleep_micro(50);
+//        sleep_micro(50);
 //        CheckForShutdown(3);
 //        while (vNodes.empty())
 //        {
@@ -2592,7 +2595,7 @@ bool BitcoinMiner()
         }
         pblock->nBits = nBits;
         pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
-        hp_log(std::cout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
+//        hp_log(std::cout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
 
 
         //
@@ -3467,8 +3470,8 @@ static int open_connections(btc_node_ctx * bctx)
 			const CAddress &addr = item.second;
 			if (!addr.IsIPv4())
 				continue;
-			if (fIRCOnly && !mapIRCAddresses.count(item.first))
-				continue;
+//			if (fIRCOnly && !mapIRCAddresses.count(item.first))
+//				continue;
 
 			// Taking advantage of mapAddresses being in sorted order,
 			// with IPs of the same class C grouped together.
@@ -3502,8 +3505,8 @@ static int open_connections(btc_node_ctx * bctx)
 								CAddress(ipC | ~nIPCMask, 0xffff).GetKey());
 				++mi) {
 			const CAddress &addr = (*mi).second;
-			if (fIRCOnly && !mapIRCAddresses.count((*mi).first))
-				continue;
+//			if (fIRCOnly && !mapIRCAddresses.count((*mi).first))
+//				continue;
 
 			int64 nRandomizer = (addr.nLastFailed * addr.ip * 7777U) % 20000;
 			if (GetTime() - addr.nLastFailed > nDelay * nRandomizer / 10000)
@@ -3537,14 +3540,14 @@ static int open_connections(btc_node_ctx * bctx)
 			rc  = btc_send(outnode, "version"
 					, [&](CDataStream& ds){ ds << VERSION << nLocalServices << nTime << addrLocalHost; });
 			if(!(rc == 0)){ continue; }
-//			if (addrLocalHost.IsRoutable()) {
+			if (addrLocalHost.IsRoutable()) {
 				// Advertise our address
 				vector<CAddress> vAddrToSend;
 				vAddrToSend.push_back(addrLocalHost);
 //				pnode->PushMessage("addr", vAddrToSend);
 				rc  = btc_send(outnode, "addr", [&](CDataStream& ds){ ds << vAddrToSend; });
 				if(!(rc == 0)){ continue; }
-//			}
+			}
 
 			// Get as many addresses as we can
 //			pnode->PushMessage("getaddr");
@@ -3613,6 +3616,7 @@ int main(int argc, char ** argv)
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	hp_ioopt opt = {
+		.timeout = 200
 #ifdef _MSC_VER
 	.wm_user = 900, /* WM_USER + N */
 	.hwnd = 0		/* hwnd */
@@ -3705,6 +3709,7 @@ int main(int argc, char ** argv)
 	if(rc != 0) return_(-99);
 #endif //#ifndef NDEBUG
    /////////////////////////////////////////////////////////////////////////////////////////////
+	addrLocalHost = CAddress(cfg("addr"));
 	loglevel  = cfg("loglevel");
 	if(loglevel[0])
 		hp_log_level = atoi(loglevel);
@@ -3784,8 +3789,8 @@ int main(int argc, char ** argv)
 	/* run */
 	hp_log(std::cout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
-	for(int i = 0; i < 100000; ++i){
-		hp_io_run(ioctx, 0, 0);
+	for(;;){
+		hp_io_run(ioctx, 1);
 		btc_ctx_loop(bctx);
 	}
 

@@ -67,6 +67,21 @@ static int inih_handler(void* user, const char* section, const char* name,
 
 	dictReplace(cfg, sdsnew(name), sdsnew(value));
 
+	if(strcmp(name, "addr") == 0){
+		/* addr=137.134.23.25:8339 */
+		char bind_[128] = "";
+		int port_ = 0;
+
+		if(value && strlen(value) > 0){
+			int n = sscanf(value, "%[^:]:%d", bind_, &port_);
+			if(n != 2){
+				return 0;
+			}
+		}
+		dictReplace(cfg, sdsnew("btc.bind"), sdsnew(bind_));
+		dictReplace(cfg, sdsnew("btc.port"), sdsfromlonglong(port_));
+	}
+
 	return 1;
 }
 
