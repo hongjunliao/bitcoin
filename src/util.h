@@ -16,6 +16,18 @@
 #include "headers.h"
 #include "uint256.h"
 
+#ifndef PRId64
+#if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__MSVCRT__)
+#define PRId64  "I64d"
+#define PRIu64  "I64u"
+#define PRIx64  "I64x"
+#else
+#define PRId64  "lld"
+#define PRIu64  "llu"
+#define PRIx64  "llx"
+#endif
+#endif
+
 //
 // Basic types
 //
@@ -87,6 +99,46 @@ uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=VERSION)
 
 inline uint160 Hash160(const vector<unsigned char>& vch);
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+inline string i64tostr(int64 n)
+{
+    return strprintf("%"PRId64, n);
+}
+
+inline string itostr(int n)
+{
+    return strprintf("%d", n);
+}
+
+inline int64 atoi64(const char* psz)
+{
+#ifdef _MSC_VER
+    return _atoi64(psz);
+#else
+    return strtoll(psz, NULL, 10);
+#endif
+}
+
+inline int64 atoi64(const string& str)
+{
+#ifdef _MSC_VER
+    return _atoi64(str.c_str());
+#else
+    return strtoll(str.c_str(), NULL, 10);
+#endif
+}
+
+inline int atoi(const string& str)
+{
+    return atoi(str.c_str());
+}
+
+inline int roundint(double d)
+{
+    return (int)(d > 0 ? d + 0.5 : d - 0.5);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 template<typename T>
 string HexStr(const T itbegin, const T itend, bool fSpaces)
@@ -112,7 +164,7 @@ string HexNumStr(const T itbegin, const T itend, bool f0x)
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 void AddTimeData(unsigned int ip, int64 nTime);
-
+bool ParseMoney(const char* pszIn, int64& nRet);
 
 
 #endif

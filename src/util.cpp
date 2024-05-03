@@ -107,6 +107,52 @@ string FormatMoney(int64 n, bool fPlus)
     return str;
 }
 
+bool ParseMoney(const char* pszIn, int64& nRet)
+{
+    string strWhole;
+    int64 nCents = 0;
+    const char* p = pszIn;
+    while (isspace(*p))
+        p++;
+    for (; *p; p++)
+    {
+        if (*p == ',' && p > pszIn && isdigit(p[-1]) && isdigit(p[1]) && isdigit(p[2]) && isdigit(p[3]) && !isdigit(p[4]))
+            continue;
+        if (*p == '.')
+        {
+            p++;
+            if (isdigit(*p))
+            {
+                nCents = 10 * (*p++ - '0');
+                if (isdigit(*p))
+                    nCents += (*p++ - '0');
+            }
+            break;
+        }
+        if (isspace(*p))
+            break;
+        if (!isdigit(*p))
+            return false;
+        strWhole.insert(strWhole.end(), *p);
+    }
+    for (; *p; p++)
+        if (!isspace(*p))
+            return false;
+    if (strWhole.size() > 14)
+        return false;
+    if (nCents < 0 || nCents > 99)
+        return false;
+    int64 nWhole = atoi64(strWhole);
+    int64 nPreValue = nWhole * 100 + nCents;
+    int64 nValue = nPreValue * CENT;
+    if (nValue / CENT != nPreValue)
+        return false;
+    if (nValue / COIN != nWhole)
+        return false;
+    nRet = nValue;
+    return true;
+}
+
 void AddTimeData(unsigned int ip, int64 nTime)
 {
     int64 nOffsetSample = nTime - GetTime();

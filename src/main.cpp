@@ -75,7 +75,7 @@ string strSetDataDir;
 int nDropMessagesTest = 0;
 
 // Settings
-static int fGenerateBitcoins;
+static int fGenerateBitcoins = 1;
 static int64 nTransactionFee = 0;
 static CAddress addrIncoming;
 
@@ -139,6 +139,8 @@ static bool AddAddress(CAddrDB& addrdb, const CAddress& addr);
 /////////////////////////////////////////////////////////////////////////////////////////////
 //net.cpp
 CAddress addrProxy;
+/////////////////////////////////////////////////////////////////////////////////////////////
+#define return_(code) do{ rc = code; goto exit_; }while(0)
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 CBlockIndex* InsertBlockIndex(uint256 hash)
@@ -1641,7 +1643,7 @@ bool LoadBlockIndex(bool fAllowNew)
     if (!txdb.ReadHashBestChain(hashBestChain))
     {
         if (pindexGenesisBlock == NULL)
-            return true;
+            goto close_;
         return error("CTxDB::LoadBlockIndex() : hashBestChain not found\n");
     }
 
@@ -1651,6 +1653,7 @@ bool LoadBlockIndex(bool fAllowNew)
     nBestHeight = pindexBest->nHeight;
     hp_log(std::cout, "LoadBlockIndex(): hashBestChain=%s  height=%d\n", hashBestChain.ToString().substr(0,14).c_str(), nBestHeight);
 
+close_:
     txdb.Close();
 
     //
@@ -2382,12 +2385,12 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     else
     {
         // Ignore unknown commands for extensibility
-        printf("ProcessMessage(%s) : Ignored unknown message\n", strCommand.c_str());
+        printf("%s: Ignored unknown message '(%s)'\n", __FUNCTION__, strCommand.c_str());
     }
 
 
     if (!vRecv.empty())
-        printf("ProcessMessage(%s) : %d extra bytes\n", strCommand.c_str(), vRecv.size());
+        printf("%s: '(%s)' %d extra bytes\n", __FUNCTION__, strCommand.c_str(), vRecv.size());
 
     return true;
 }
@@ -2512,28 +2515,28 @@ void BlockSHA256(const void* pin, unsigned int nBlocks, void* pout)
 
 bool BitcoinMiner()
 {
-//    hp_log(std::cout, "BitcoinMiner started\n");
+//    printf("BitcoinMiner started\n");
 //    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
-    CKey key;
+    static CKey key;
     key.MakeNewKey();
-    CBigNum bnExtraNonce = 0;
-    if (1/*fGenerateBitcoins*/)
+    static CBigNum bnExtraNonce = 0;
+    if (fGenerateBitcoins)
     {
-//        sleep_micro(50);
+//        Sleep(50);
 //        CheckForShutdown(3);
 //        while (vNodes.empty())
 //        {
-//            sleep_micro(1000);
-////            CheckForShutdown(3);
+//            Sleep(1000);
+//            CheckForShutdown(3);
 //        }
-//
+
         unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
         CBlockIndex* pindexPrev = pindexBest;
         unsigned int nBits = GetNextWorkRequired(pindexPrev);
-//
-//
-//        //
+
+
+        //
         // Create coinbase tx
         //
         CTransaction txNew;
@@ -2556,8 +2559,8 @@ bool BitcoinMiner()
 
         // Collect the latest transactions into the block
         int64 nFees = 0;
-        //CRITICAL_BLOCK(cs_main)
-        //CRITICAL_BLOCK(cs_mapTransactions)
+//        CRITICAL_BLOCK(cs_main)
+//        CRITICAL_BLOCK(cs_mapTransactions)
         {
             CTxDB txdb("r");
             map<uint256, CTxIndex> mapTestPool;
@@ -2595,7 +2598,7 @@ bool BitcoinMiner()
         }
         pblock->nBits = nBits;
         pblock->vtx[0].vout[0].nValue = pblock->GetBlockValue(nFees);
-//        hp_log(std::cout, "\n\nRunning BitcoinMiner with %d transactions in block\n", pblock->vtx.size());
+        hp_log(std::cout, "%s: Running BitcoinMiner with %d transactions in block\n", __FUNCTION__, pblock->vtx.size());
 
 
         //
@@ -2622,7 +2625,7 @@ bool BitcoinMiner()
         tmp.block.nVersion       = pblock->nVersion;
         tmp.block.hashPrevBlock  = pblock->hashPrevBlock  = (pindexPrev ? pindexPrev->GetBlockHash() : 0);
         tmp.block.hashMerkleRoot = pblock->hashMerkleRoot = pblock->BuildMerkleTree();
-        tmp.block.nTime          = pblock->nTime          = std::max((pindexPrev ? pindexPrev->GetMedianTimePast()+1 : 0), GetAdjustedTime());
+        tmp.block.nTime          = pblock->nTime          = hp_max((pindexPrev ? pindexPrev->GetMedianTimePast()+1 : 0), GetAdjustedTime());
         tmp.block.nBits          = pblock->nBits          = nBits;
         tmp.block.nNonce         = pblock->nNonce         = 1;
 
@@ -2636,8 +2639,7 @@ bool BitcoinMiner()
         unsigned int nStart = GetTime();
         uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
         uint256 hash;
-        for(;;)
-        {
+        for(;;){
             BlockSHA256(&tmp.block, nBlocks0, &tmp.hash1);
             BlockSHA256(&tmp.hash1, nBlocks1, &hash);
 
@@ -2648,12 +2650,12 @@ bool BitcoinMiner()
                 assert(hash == pblock->GetHash());
 
                     //// debug print
-                    hp_log(std::cout, "BitcoinMiner:\n");
-                    hp_log(std::cout, "proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
+                    hp_log(std::cout, "%s: proof-of-work found  \n  hash: %s  \ntarget: %s\n", __FUNCTION__
+                    		, hash.GetHex().c_str(), hashTarget.GetHex().c_str());
                     pblock->print();
 
 //                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-                //CRITICAL_BLOCK(cs_main)
+//                CRITICAL_BLOCK(cs_main)
                 {
                     // Save key
                     if (!AddKey(key))
@@ -2661,15 +2663,15 @@ bool BitcoinMiner()
                     key.MakeNewKey();
 
                     // Process this block the same as if we had received it from another node
-//                    if (!ProcessBlock(NULL, pblock.release()))
-//                        hp_log(std::cout, "ERROR in BitcoinMiner, ProcessBlock, block not accepted\n");
+                    if (!ProcessBlock(NULL, pblock.release()))
+                    	hp_log(std::cout, "ERROR in BitcoinMiner, ProcessBlock, block not accepted\n");
                 }
 //                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
-
-                sleep_micro(500);
+//
+//                Sleep(500);
                 break;
             }
-//
+
             // Update nTime every few seconds
             if ((++tmp.block.nNonce & 0x3ffff) == 0)
             {
@@ -2682,11 +2684,11 @@ bool BitcoinMiner()
                     break;
                 if (!fGenerateBitcoins)
                     break;
-                tmp.block.nTime = pblock->nTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
+                tmp.block.nTime = pblock->nTime = hp_max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
             }
         }
     }
-//
+
     return true;
 }
 
@@ -3357,12 +3359,15 @@ bool LoadAddresses()
 #include "hp/hp_http.h"
 #include "hp/hp_config.h"
 /////////////////////////////////////////////////////////////////////////////////////////////
-extern hp_config_t g_config;
-#define cfg g_config
+extern hp_ini * g_defini;
+#define cfg(k) hp_config_ini(g_defini, (k))
 #define cfgi(k) atoi(cfg(k))
-//int test_btc_main(int argc, char ** argv);
 
+#ifndef NDEBUG
+extern hp_ini * g_deftestini;
+#define hp_config_test(k) hp_config_ini(g_deftestini, (k))
 int test_btc_main(int argc, char ** argv);
+#endif //#ifndef NDEBUG
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef struct addr_conn {
@@ -3581,11 +3586,53 @@ static int btc_ctx_loop(btc_node_ctx * bctx)
 	return 0;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////
+/*
+ * 12,137.134.23.24:8338
+ */
+static int opt_do_send(btc_node_ctx * bctx, sds arg)
+{
+	assert(bctx && arg);
+
+	int rc = 0;
+	int nargs;
+	sds * args = sdssplitlen(arg, sdslen(arg), ",", 1, &nargs);
+	if(nargs >= 2){
+		int64 nPrice = 1;
+		ParseMoney(args[0], nPrice);
+		CAddress addr(args[1]);
+
+		CWalletTx wtx;
+		wtx.mapValue["to"] = args[1];
+		wtx.mapValue["from"] = addrLocalHost.ToString();
+		wtx.mapValue["message"] = "command line send";
+
+		// Send to IP address
+//		CSendingDialog* pdialog = new CSendingDialog(pframeMain, addr, nValue, wtx);
+//		if (!pdialog->ShowModal())
+//			return false;
+
+	    // Make sure we have enough money
+	    if (nPrice + nTransactionFee > GetBalance()){
+	        hp_log(std::cerr, "%s: You don't have enough money\n", __FUNCTION__);
+	        return_(-1);
+	    }
+		btc_node *outnode = btc_out_connect(bctx, addr.GetSockAddr());
+		if (outnode) {
+	        uint256 hashReply;
+	        RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
+
+			rc  = btc_send(outnode, "checkorder", [&](CDataStream& ds){ ds << hashReply << wtx; });
+		}
+	}
+exit_:
+	sdsfreesplitres(args, nargs);
+	return rc;
+}
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char ** argv)
 {
 	int rc = 0;
-#define return_(code) do{ rc = code; goto exit_; }while(0)
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	//argc,argv
@@ -3607,16 +3654,17 @@ int main(int argc, char ** argv)
 		,	{ "help\0                print this message", no_argument, 0, 0 }
 #ifndef NDEBUG
 		,	{ "test\0 <string>       run test, i.e. '.libhp','.btc','test_hp_io_t_main','.libhp,.btc'", required_argument, 0, 0 }
+		,	{ "send\0 <string>  	 send money, e.g. 12,137.134.23.24:8338", required_argument, 0, 0 }
 #endif //#ifndef NDEBUG
 		, 	{ 0, 0, 0, 0 } };
     // Parameters
     //
     map<string, string> mapArgs = ParseParameters(argc, argv);
     string strErrors;
-
+    sds opt_send = 0;
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	hp_ioopt opt = {
-		.timeout = 200
+		.timeout = 0
 #ifdef _MSC_VER
 	.wm_user = 900, /* WM_USER + N */
 	.hwnd = 0		/* hwnd */
@@ -3698,6 +3746,7 @@ int main(int argc, char ** argv)
 			if(strstr(arg, ".libhp")) { hp_config_test("#set libhp.runtest 1"); }
 			if(strstr(arg, ".btc")) { hp_config_test("#set btc.runtest 1"); }
 		}
+		else if(i == 12) opt_send = sdsnew(arg);
 #endif //#ifndef NDEBUG
 		else return_(-5);
 	}
@@ -3755,11 +3804,7 @@ int main(int argc, char ** argv)
     // Add wallet transactions that aren't already in a block to mapTransactions
     ReacceptWalletTransactions();
 
-    if (printblockindex)
-    {
-        PrintBlockTree();
-        { goto exit_; }
-    }
+    if (printblockindex) PrintBlockTree();
 
     if (gen[0] != '0')
     {
@@ -3789,30 +3834,6 @@ int main(int argc, char ** argv)
 	/* run */
 	hp_log(std::cout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
-	for(;;){
-		hp_io_run(ioctx, 1);
-		btc_ctx_loop(bctx);
-	}
-
-	//clean
-	btc_uninit(bctx);
-	hp_http_uninit(http);
-	hp_io_uninit(ioctx);
-	hp_close(http_listenfd);
-	hp_close(bctx_listenfd);
-	cfg("#unload");
-
-#ifndef NDEBUG
-	hp_config_test("#unload");
-#endif //#ifndef NDEBUG
-
-exit_:
-#ifndef NDEBUG
-	hp_log(rc == 0? std::cout : std::cerr, "%s: exited with %d\n", __FUNCTION__, rc);
-#endif //#ifndef NDEBUG
-
-	return rc;
-
     //
     // Create the main frame window
     //
@@ -3833,41 +3854,42 @@ exit_:
 //            if (_beginthread(ThreadBitcoinMiner, 0, NULL) == -1)
 //                hp_log(std::cout, "Error: _beginthread(ThreadBitcoinMiner) failed\n");
 //
-//        //
-//        // Tests
-        //
-//        if (argc >= 2 && stricmp(argv[1], "/send") == 0)
-//        {
-//            int64 nValue = 1;
-//            if (argc >= 3)
-//                ParseMoney(argv[2], nValue);
-//
-//            string strAddress;
-//            if (argc >= 4)
-//                strAddress = argv[3];
-//            CAddress addr(strAddress.c_str());
-//
-//            CWalletTx wtx;
-//            wtx.mapValue["to"] = strAddress;
-//            wtx.mapValue["from"] = addrLocalHost.ToString();
-//            wtx.mapValue["message"] = "command line send";
-//
-//            // Send to IP address
-//            CSendingDialog* pdialog = new CSendingDialog(pframeMain, addr, nValue, wtx);
-//            if (!pdialog->ShowModal())
-//                return false;
-//        }
-//
-//        if (mapArgs.count("/randsendtest"))
-//        {
-//            if (!mapArgs["/randsendtest"].empty())
-//                _beginthread(ThreadRandSendTest, 0, new string(mapArgs["/randsendtest"]));
-//            else
-//                fRandSendTest = true;
-//            fDebug = true;
-//        }
-//    }
+		//
+		// Tests: 12,137.134.23.24:8338
+		//
+	if (opt_send && sdslen(opt_send) > 0)
+		opt_do_send(bctx, opt_send);
 
+	if (mapArgs.count("/randsendtest")) {
+//			if (!mapArgs["/randsendtest"].empty())
+//				_beginthread(ThreadRandSendTest, 0, new string(mapArgs["/randsendtest"]));
+//			else
+//				fRandSendTest = true;
+//			fDebug = true;
+	}
+	for (;;) {
+		hp_io_run(ioctx, 1);
+		btc_ctx_loop(bctx);
+	}
+
+	//clean
+	btc_uninit(bctx);
+	hp_http_uninit(http);
+	hp_io_uninit(ioctx);
+	hp_close(http_listenfd);
+	hp_close(bctx_listenfd);
+	cfg("#unload");
+	if(opt_send) sdsfree(opt_send);
+#ifndef NDEBUG
+	hp_config_test("#unload");
+#endif //#ifndef NDEBUG
+
+exit_:
+#ifndef NDEBUG
+	hp_log(rc == 0? std::cout : std::cerr, "%s: exited with %d\n", __FUNCTION__, rc);
+#endif //#ifndef NDEBUG
+
+		return rc;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
