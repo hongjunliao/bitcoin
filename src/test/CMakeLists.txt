@@ -73,6 +73,7 @@ add_executable(test_bitcoin
   pool_tests.cpp
   pow_tests.cpp
   prevector_tests.cpp
+  programming_bitcoin_jimmy_song.cpp
   raii_event_tests.cpp
   random_tests.cpp
   rbf_tests.cpp
