@@ -46,11 +46,6 @@ static hp_ini iniobj = {.parser = btc_inih_handler };
 //global default configure
 hp_ini * g_ini = &iniobj;
 
-#ifndef NDEBUG
-static hp_ini testiniobj = {.parser = btc_inih_handler };
-//global default configure
-hp_ini * g_testini = &testiniobj;
-#endif
 /////////////////////////////////////////////////////////////////////////////////////////
 
 #ifndef NDEBUG

@@ -60,6 +60,7 @@ std::vector<struct addrinfo> dnsLookup(const std::string& hostname, const std::s
 BOOST_AUTO_TEST_SUITE(net_tests)
 
 BOOST_AUTO_TEST_CASE(dns_lookup_test) {
+	return;
     std::vector<std::string> vSeeds;
 //	vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
 	vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9

@@ -40,11 +40,11 @@ else()
 	set(getopt_lib c)
 endif()
 
-set(g_withs 1 1 1 1 1 1 1)
-set(g_hdrs .nullfilesub.h .nullfilesrc.h getopt.h openssl/ssl.h db_cxx.h .nullfilesrc.h boost/foreach.hpp)
-set(g_incs "deps/libhp/include/" "${PROJECT_BINARY_DIR}/ deps/libhp/deps/" deps/getopt/ deps/openssl/include ${db_inc} deps/ deps/boost_1_82_0)
-set(g_deps libhp .src getopt openssl db cryptopp boost_1_82_0)
-set(g_libs libhp "src/*.cpp src/test/*.cpp"  ${getopt_lib} "ssl crypto"  db_cxx "deps/cryptopp/*.cpp" "boost_filesystem boost_unit_test_framework")
+set(g_withs 1 1 1 1 1 1 1 1)
+set(g_hdrs .nullfilesub.h .nullfilesub.h .nullfilesrc.h getopt.h openssl/ssl.h db_cxx.h .nullfilesrc.h boost/foreach.hpp)
+set(g_incs "secp256k1/include/" "deps/libhp/include/" "${PROJECT_BINARY_DIR}/ deps/libhp/deps/" deps/getopt/ deps/openssl/include ${db_inc} deps/ deps/boost_1_82_0)
+set(g_deps libhp secp256k1 .src getopt openssl db cryptopp boost_1_82_0)
+set(g_libs libhp secp256k1 "src/*.cpp src/test/*.cpp"  ${getopt_lib} "ssl crypto"  db_cxx "deps/cryptopp/*.cpp" "boost_filesystem boost_unit_test_framework")
 ###########################################################################################
 # for libhp
 set(LIBHP_WITH_HTTP 1 CACHE INTERNAL "LIBHP_WITH_HTTP")

@@ -140,20 +140,23 @@ static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
 	assert(io && hdrp && bodyp);
 	int rc = 0;
 	auto innode = (btc_node*) io;
+	//消息长度至少达到BTC_HDR_SIZE,否则不是一个完整的bitcoin 消息
 	if(!(*len >= BTC_HDR_SIZE)) { return(0); }
 
 	// Read header
 	auto phdr = new MessageHeader;
 	memcpy(phdr, buf, BTC_HDR_SIZE);
 
+	//magic要匹配，否则不是bitcoin 消息(比如是垃圾数据)
 	if(!(memcmp(phdr->magic, "\xf9\xbe\xb4\xd9", 4) == 0)){
 		*len = 0;
 		return_(-2);
 	}
+	//匹配到了一个合法bitcoin消息，检查消息的playload部分是否已同时到达
 	if(*len - BTC_HDR_SIZE < phdr->length){
 		return_(0);
 	}
-
+	//剩余的部分是下一个消息的数据(如果不为0的话)
 	*len -= (BTC_HDR_SIZE + phdr->length);
 	if(strncmp(phdr->command, "version", 7) == 0){
 		*bodyp = sdsnewlen(buf + BTC_HDR_SIZE, phdr->length);
@@ -172,6 +175,26 @@ exit_:
 	return rc;
 }
 
+static int btc_echo(hp_io_t * io, char const * command, MessageHeader * phdr, sds payload)
+{
+	assert(io && command && phdr && payload);
+	assert(phdr->length == sdslen(payload));
+	int rc = 0;
+	strcpy(phdr->command, command);
+
+    // Serialize version message
+    uint8_t * message = new uint8_t[BTC_HDR_SIZE+phdr->length];
+    memcpy(message, phdr, BTC_HDR_SIZE);
+    memcpy(message + BTC_HDR_SIZE, payload, phdr->length);
+
+	rc = hp_io_write(io, message, BTC_HDR_SIZE + phdr->length
+				, [](void * p){ assert(p); delete (uint8_t *)p; }, 0);
+	assert(rc == 0);
+	hp_log(std::cout, "%s: sent, message='%s', payload_len=%d\n", __FUNCTION__, command, phdr->length);
+
+	return rc;
+}
+
 static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 {
 	assert(io && hdr);
@@ -181,23 +204,13 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 
 	if(strncmp(phdr->command, "version", 7) == 0){
 		auto payload = (sds)body;
-		assert(phdr->length == sdslen(payload));
-		strcpy(phdr->command, "verack");
-
-	    // Serialize version message
-	    uint8_t * message = new uint8_t[BTC_HDR_SIZE+phdr->length];
-	    memcpy(message, phdr, BTC_HDR_SIZE);
-	    memcpy(message + BTC_HDR_SIZE, payload, phdr->length);
-
-		rc = hp_io_write(&node->io, message, BTC_HDR_SIZE + phdr->length
-					, [](void * p){ assert(p); delete (uint8_t *)p; }, 0);
-		assert(rc == 0);
-		hp_log(std::cout, "%s: sent, message=verack, payload_len=%d\n", __FUNCTION__, phdr->length);
-
+		btc_echo(&node->io, "verack", phdr, payload);
 		sdsfree(payload);
 	}
 	else if(strncmp(phdr->command, "ping", 4) == 0){
-
+		auto payload = (sds)body;
+		btc_echo(&node->io, "pong", phdr, payload);
+		sdsfree(payload);
 	}
 	delete phdr;
 
