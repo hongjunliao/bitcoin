@@ -185,11 +185,13 @@ static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
 	}
 
 	*len -= (BTC_HDR_SIZE + phdr->length);
-	if(strncmp(phdr->command, "version\0\0\0\0\0", 12) == 0){
+	if(strncmp(phdr->command, "version", 7) == 0){
+		*bodyp = sdsnewlen(buf + BTC_HDR_SIZE, phdr->length);
+	}
+	else if(strncmp(phdr->command, "ping", 4) == 0){
 		*bodyp = sdsnewlen(buf + BTC_HDR_SIZE, phdr->length);
 	}
 	else{
-		*len -= 0;
 		hp_log(std::cout, "%s: NOT support message=%s, payload_len=%d\n", __FUNCTION__, phdr->command, phdr->length);
 	}
 
@@ -207,7 +209,7 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 	auto node = (btc_node*) io;
 	auto phdr = (MessageHeader *)hdr;
 
-	if(strcmp(phdr->command, "version") == 0){
+	if(strncmp(phdr->command, "version", 7) == 0){
 		auto payload = (sds)body;
 		assert(phdr->length == sdslen(payload));
 		strcpy(phdr->command, "verack");
@@ -223,6 +225,9 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdr, void * body)
 		hp_log(std::cout, "%s: sent, message=verack, payload_len=%d\n", __FUNCTION__, phdr->length);
 
 		sdsfree(payload);
+	}
+	else if(strncmp(phdr->command, "ping", 4) == 0){
+
 	}
 	delete phdr;
 
