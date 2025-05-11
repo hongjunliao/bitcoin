@@ -1,3 +1,10 @@
+/*!
+ * @author hongjun.liao <docici@126.com>
+ *
+ * my bitcoin core research
+ * */
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 #include <sys/socket.h>
 #include <netdb.h>
 #include <string.h>

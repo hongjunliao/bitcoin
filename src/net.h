@@ -1,6 +1,10 @@
-// Copyright (c) 2009 Satoshi Nakamoto
-// Distributed under the MIT/X11 software license, see the accompanying
-// file license.txt or http://www.opensource.org/licenses/mit-license.php.
+/*!
+ * @author hongjun.liao <docici@126.com>
+ *
+ * my bitcoin core research
+ * */
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 #ifndef BTC_NET_H
 #define BTC_NET_H
 #include <netdb.h>

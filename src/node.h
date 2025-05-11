@@ -1,3 +1,9 @@
+/*!
+ * @author hongjun.liao <docici@126.com>
+ *
+ * my bitcoin core research
+ * */
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 #ifndef BTC_NODE_H
 #define BTC_NODE_H
