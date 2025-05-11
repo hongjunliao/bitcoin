@@ -21,7 +21,6 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#include "net.h"
 
 struct btc_node_ctx {
 	hp_io_ctx  * ioctx;
@@ -62,10 +61,6 @@ void btc_uninit(btc_node_ctx * ioctx);
 btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr, void *key));
 #define btc_out_count(bctx) (listLength(bctx->outlist))
 
-/////////////////////////////////////////////////////////////////////////////////////////
-
-int btc_send(btc_node * outnode, char const * hdr_
-		, std::function<void(CDataStream& ds)>  const& datacb);
 /////////////////////////////////////////////////////////////////////////////////////////
 
 /**

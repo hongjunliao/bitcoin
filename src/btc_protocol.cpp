@@ -16,7 +16,7 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <openssl/sha.h> // For SHA-256 checksum
-#include "protocol.h"
+#include "btc_protocol.h"
 // Compute SHA-256 checksum (first 4 bytes of double SHA-256)
 void compute_checksum(const uint8_t *data, size_t len, uint8_t *checksum) {
     uint8_t hash1[SHA256_DIGEST_LENGTH];

@@ -15,7 +15,7 @@
 #include "hp/hp_io_t.h"      /* ,... */
 #include "hp/hp_log.h"
 #include "hp/str_dump.h"
-#include "node.h"
+#include "btc_node.h"
 
 #include "hp/hp_http.h"
 #include "hp/hp_net.h"
@@ -24,8 +24,7 @@ extern "C"{
 #include "redis/src/dict.h"	  	/* dict */
 #include "redis/src/adlist.h"	/* list */
 }
-#include "net.h"
-#include "protocol.h"
+#include "btc_protocol.h"
 
 extern hp_ini * g_ini;
 #define cfg(k) hp_config_ini(g_ini, (k))
@@ -68,35 +67,6 @@ static dictType qosTableDictType = {
 	NULL                    /* val destructor */
 };
 
-
-/////////////////////////////////////////////////////////////////////////////////////////
-/**
- * BTC protocol
- * */
-
-int btc_send(btc_node * outnode, char const * hdr_
-		, std::function<void(CDataStream& ds)>  const& datacb)
-{
-	int rc = 0;
-
-//	btc_msg * msg = new btc_msg; assert(msg);
-//	(msg)->ds << MessageHeader((hdr_), 0);
-//	if(datacb) { datacb((msg)->ds); }
-//
-//	unsigned int nSize = (msg)->ds.size() - 0 - sizeof(MessageHeader);
-//	memcpy((char*)&(msg)->ds[0] + offsetof(MessageHeader, nMessageSize), &nSize, sizeof(nSize));
-//
-//	rc = hp_io_write((hp_io_t *)outnode, &msg->ds[0], msg->ds.size(),
-//			[](void * msg){ assert(msg); delete (btc_msg *)msg; }, msg);
-//
-//#ifndef NDEBUG
-//	hp_log(std::cout, "%s: => %p/'%s'/%d\n", __FUNCTION__, msg, hdr_, msg->ds.size());
-//#endif
-//
-//	if(!((rc) == 0)){ delete (msg); }
-
-	return rc;
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 

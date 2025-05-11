@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 //
 #include "config.h"
+#include <getopt.h>		/* getopt_long */
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -17,7 +18,7 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <boost/filesystem.hpp>
-#include <getopt.h>		/* getopt_long */
+#include <boost/test/unit_test.hpp>
 #include "hp/sdsinc.h"	//sds
 #include "hp/string_util.h"
 #include "hp/hp_log.h"
@@ -26,9 +27,8 @@
 #include "hp/hp_http.h"
 #include "hp/hp_config.h"
 
-#include "net.h"
-#include "node.h"
-#include <boost/test/unit_test.hpp>
+#include "btc_net.h"
+#include "btc_node.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 extern hp_ini * g_ini;
