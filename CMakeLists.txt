@@ -12,7 +12,7 @@ include(deps/libhp/cmakes/libhp.cmake) # hp_cmake_find_deps
 ###########################################################################################
 # bitcoin-v0.1.5
 project(bitcoin-v0.1.5)
-
+#set(CMAKE_CXX_STANDARD 20)
 ###########################################################################################
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release CACHE STRING "Options are: None, Debug, Release, RelWithDebInfo, MinSizeRel." FORCE)
@@ -44,7 +44,7 @@ set(g_withs 1 1 1 1 1 1 1)
 set(g_hdrs .nullfilesub.h .nullfilesrc.h getopt.h openssl/ssl.h db_cxx.h .nullfilesrc.h boost/foreach.hpp)
 set(g_incs "deps/libhp/include/" "${PROJECT_BINARY_DIR}/ deps/libhp/deps/" deps/getopt/ deps/openssl/include ${db_inc} deps/ deps/boost_1_82_0)
 set(g_deps libhp .src getopt openssl db cryptopp boost_1_82_0)
-set(g_libs libhp "src/*.cpp"  ${getopt_lib} "ssl crypto"  db_cxx "deps/cryptopp/*.cpp" c)
+set(g_libs libhp "src/*.cpp src/test/*.cpp"  ${getopt_lib} "ssl crypto"  db_cxx "deps/cryptopp/*.cpp" "boost_filesystem boost_unit_test_framework")
 ###########################################################################################
 # for libhp
 set(LIBHP_WITH_HTTP 1 CACHE INTERNAL "LIBHP_WITH_HTTP")
@@ -65,11 +65,7 @@ target_compile_options(bitcoin-v0.1.5 PUBLIC
 	-DHAVE_CONFIG_H
     -DCMAKE_EXPORT_COMPILE_COMMANDS
     # for redis
-    -DDICT_BENCHMARK_MAIN
-	# for mg
-	-DMG_ENABLE_DIRECTORY_LISTING
-    # for cJSON
-    -DcJSON_FREE_PRINT
+    -DBOOST_TEST_DYN_LINK
 )
 
 ###########################################################################################

@@ -47,14 +47,14 @@ int btc_inih_handler(void* user, const char* section, const char* name,const cha
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
-static hp_ini definiobj = {.parser = btc_inih_handler };
+static hp_ini iniobj = {.parser = btc_inih_handler };
 //global default configure
-hp_ini * g_defini = &definiobj;
+hp_ini * g_ini = &iniobj;
 
 #ifndef NDEBUG
-static hp_ini deftestiniobj = {.parser = btc_inih_handler };
+static hp_ini testiniobj = {.parser = btc_inih_handler };
 //global default configure
-hp_ini * g_deftestini = &deftestiniobj;
+hp_ini * g_testini = &testiniobj;
 #endif
 /////////////////////////////////////////////////////////////////////////////////////////
 

@@ -34,7 +34,7 @@
 #include "hp/hp_config.h"
 #include "sds/sds.h"
 /////////////////////////////////////////////////////////////////////////////////////////////
-extern hp_ini * g_deftestini;
+extern hp_ini * g_testini;
 #define cfg(k) hp_config_ini(g_deftestini, (k))
 #define cfgi(k) atoi(cfg(k))
 
