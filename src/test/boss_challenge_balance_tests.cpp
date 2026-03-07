@@ -50,6 +50,7 @@
 #include "secp256k1.h"
 #include "secp256k1_extrakeys.h"
 
+#include "balance.cpp" 
 /////////////////////////////////////////////////////////////////////////////////////
 
 using namespace std::literals;
@@ -209,25 +210,22 @@ BOOST_AUTO_TEST_CASE(boss_challenge_balance_03)
 {
 	extern int boss_challenge_balance_02_tests_main();
 	// boss_challenge_balance_02_tests_main();
-}
-BOOST_AUTO_TEST_CASE(boss_challenge_balance)
-{
-	int i;
+    int i;
     FlatSigningProvider keys_priv, keys_pub;
     std::string error;
     CExtKey extkey;
-
+    
     std::vector<std::unique_ptr<Descriptor>> parse_privs;
     parse_privs = Parse(BOSS_DESC, keys_priv, error, true);
     BOOST_CHECK_MESSAGE(!parse_privs.empty(), error);
-//    auto& key = parse_privs.at(0);
+    //    auto& key = parse_privs.at(0);
     BOOST_CHECK(keys_priv.keys.empty());
     auto  key = keys_priv.keys.begin();
     BOOST_CHECK(key->second.IsValid());
     // extkey = key->second;
-
-//    auto& parse_pub = parse_pubs.at(desc_index);
-
+    
+    //    auto& parse_pub = parse_pubs.at(desc_index);
+    
     extkey = DecodeExtKey("tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ");
     BOOST_CHECK(extkey.key.IsValid());
     // Derive new keys
@@ -235,19 +233,56 @@ BOOST_AUTO_TEST_CASE(boss_challenge_balance)
     BOOST_CHECK(!keyNew.key.IsValid());
     BOOST_CHECK(extkey.Derive(keyNew, 2000));
     BOOST_CHECK(keyNew.key.IsValid());
-
+    
     std::vector<XOnlyPubKey> xonly_pubkeys;
     for(i = 0; i < 2000; ++i){
-    	CExtKey child;
+        CExtKey child;
         BOOST_CHECK(extkey.Derive(child, i));
-		CExtPubKey pubkeyNew = child.Neuter();
+        CExtPubKey pubkeyNew = child.Neuter();
         XOnlyPubKey xonly_pub(pubkeyNew.pubkey);
         xonly_pubkeys.push_back(xonly_pub);
-
-		// 方式2：显式构造 WitnessV1Taproot（更安全，类型更明确）
-		WitnessV1Taproot wit1(xonly_pub);
-//		p2tr_witness_programs.push_back(wit1.program);  // 也是 32 字节
-//            p2tr_witness_programs.push_back(program);
+    
+        // 方式2：显式构造 WitnessV1Taproot（更安全，类型更明确）
+        WitnessV1Taproot wit1(xonly_pub);
+    //		p2tr_witness_programs.push_back(wit1.program);  // 也是 32 字节
+    //            p2tr_witness_programs.push_back(program);
     }
 }
+
+BOOST_AUTO_TEST_CASE(boss_challenge_balance)
+{
+    balance_main(0, nullptr);
+
+    const char *descriptor = "tr(tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ/86h/1h/0h/0/*)#twn4yrj5";
+
+    FlatSigningProvider keys_priv;
+    std::string error;
+    auto descs = Parse(descriptor, keys_priv, error, true);
+    BOOST_CHECK_MESSAGE(!descs.empty(), error);
+    
+    std::pair<int64_t, int64_t> range = {0, 2000};
+    std::vector<CScript> scripts;
+    error = "Cannot derive script without private keys";
+    for (int i = range.first; i <= range.second; ++i) {
+        for (const auto& desc : descs) {
+            std::vector<CScript> rscripts;
+            auto r = desc->Expand(i, keys_priv, rscripts, keys_priv);
+            BOOST_CHECK_MESSAGE(r, error);
+
+            desc->ExpandPrivate(/*pos=*/i, keys_priv, /*out=*/keys_priv);
+            std::move(rscripts.begin(), rscripts.end(), std::back_inserter(scripts));
+        }
+    }
+
+    std::set<CScript> needles;
+    std::map<CScript, std::string> descriptors;
+    for (CScript& script : scripts) {
+        std::string inferred = InferDescriptor(script, keys_priv)->ToString();
+        needles.emplace(script);
+        descriptors.emplace(std::move(script), std::move(inferred));
+    }
+
+}
+
 BOOST_AUTO_TEST_SUITE_END()
+

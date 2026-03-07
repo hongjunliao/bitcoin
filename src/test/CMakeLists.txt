@@ -9,6 +9,7 @@ add_executable(test_bitcoin
   base58_tests.cpp
   descriptor_tests.cpp
   boss_challenge_balance_tests.cpp
+  boss_challenge_balance_01_tests.cpp
 )
 
 include(TargetDataSources)
