@@ -10,6 +10,7 @@ add_executable(test_bitcoin
   descriptor_tests.cpp
   boss_challenge_balance_tests.cpp
   boss_challenge_balance_01_tests.cpp
+  mastering_taptroot.cpp
 )
 
 include(TargetDataSources)
