@@ -15,3 +15,6 @@
 mkdir build && cd build && cmake .. && make
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 #debug构建
 ```
+
+#### run
+./build/btcc

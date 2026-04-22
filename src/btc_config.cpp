@@ -9,8 +9,9 @@
 #include "config.h"
 #endif /* HAVE_CONFIG_H */
 
+#include <boost/test/unit_test.hpp>
 #include "hp/hp_assert.h"
-#include "hp/hp_config.h"
+#include "hp/hp_ini.h"
 #include <string.h>
 /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -23,19 +24,19 @@ int btc_inih_handler(void* user, const char* section, const char* name,const cha
 
 	dictReplace(d, sdsnew(name), sdsnew(value));
 
-	if(strcmp(name, "addr") == 0){
+	if(strcmp(name, "btc.p2p") == 0){
 		/* addr=137.134.23.25:8339 */
 		char bind_[128] = "";
 		int port_ = 0;
 
 		if(value && strlen(value) > 0){
 			int n = sscanf(value, "%[^:]:%d", bind_, &port_);
-			if(n != 2){
+			if(n < 1){
 				return 0;
 			}
 		}
-		dictReplace(d, sdsnew("btc.bind"), sdsnew(bind_));
-		dictReplace(d, sdsnew("btc.port"), sdsfromlonglong(port_));
+		dictReplace(d, sdsnew("btc.p2p.ip"), sdsnew(bind_));
+		dictReplace(d, sdsnew("btc.p2p.port"), sdsfromlonglong(port_));
 	}
 
 	return 1;
@@ -48,11 +49,11 @@ hp_ini * g_ini = &iniobj;
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef NDEBUG
-int test_btc_config_main(int argc, char ** argv)
-{
+BOOST_AUTO_TEST_SUITE(config)
+
+BOOST_AUTO_TEST_CASE(config_file) {
 	hp_ini testiniobj = {.parser = btc_inih_handler }, * testini = &testiniobj;
-#define cfg(k) hp_config_ini(testini, (k))
+#define cfg(k) hp_ini_exec(testini, (k))
 #define cfgi(k) atoi(cfg(k))
 	assert(cfgi("#set test.key.name 23") == 0 && cfgi("test.key.name") == 23);
 	assert(cfgi("#set test.key.name 24") == 0 && cfgi("test.key.name") == 24);
@@ -61,10 +62,8 @@ int test_btc_config_main(int argc, char ** argv)
 	hp_assert(strlen(cfg("loglevel")) > 0, "loglevel NOT found");
 	hp_assert(strlen(cfg("#show")) > 0, "#show failed");
 
-	return 0;
 }
 
-
-#endif //NDEBUG
+BOOST_AUTO_TEST_SUITE_END()
 
 /////////////////////////////////////////////////////////////////////////////////////////

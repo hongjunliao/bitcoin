@@ -20,41 +20,23 @@
 #include <boost/filesystem.hpp>
 #include <boost/test/unit_test.hpp>
 #include "hp/sdsinc.h"	//sds
-#include "hp/string_util.h"
+#include "hp/hp_str.h"
 #include "hp/hp_log.h"
 #include "hp/hp_assert.h"
 #include "hp/hp_net.h"
 #include "hp/hp_http.h"
-#include "hp/hp_config.h"
+#include "hp/hp_ini.h"
 
 #include "btc_net.h"
 #include "btc_node.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 extern hp_ini * g_ini;
-#define cfg(k) hp_config_ini(g_ini, (k))
+#define cfg(k) hp_ini_exec(g_ini, (k))
 #define cfgi(k) atoi(cfg(k))
 
 #define return_(code) do{ rc = code; goto exit_; } while(0)
-int test_btc_main(int argc, char ** argv);
-/////////////////////////////////////////////////////////////////////////////////////////////
-class CChainParams {
-public:
-    std::vector<std::string> vSeeds;
-};
-class CMainParams: public CChainParams {
-	CMainParams(){
-        vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
-        vSeeds.emplace_back("dnsseed.bitcoin.dashjr-list-of-p2p-nodes.us."); // Luke Dashjr
-        vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("seed.bitcoin.sprovoost.nl."); // Sjors Provoost
-        vSeeds.emplace_back("dnsseed.emzy.de."); // Stephan Oeste
-        vSeeds.emplace_back("seed.bitcoin.wiz.biz."); // Jason Maurice
-        vSeeds.emplace_back("seed.mainnet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
-	}
-};
+
 
 /////////////////////////////////////////////////////////////////////////////////////////
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp)
@@ -116,8 +98,8 @@ int btc_main(int argc, char ** argv)
 	hp_log(std::cout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
 
-	btc_connect(bctx, "8333");
-	for (;;) {
+        btc_connect(bctx);
+        for (;;) {
 		hp_io_run(ioctx, 1);
 	}
 

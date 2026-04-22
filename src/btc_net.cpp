@@ -24,7 +24,7 @@
 //   - port: Bitcoin 网络端口（主网默认 8333）
 // 返回:
 //   - std::vector<addrinfo: 解析出的 IP 地址列表（IPv4 或 IPv6）
-std::vector<struct addrinfo> dnsLookup(const std::string& hostname, const std::string& port)
+std::vector<struct addrinfo> btc_dnsLookup(const std::string& hostname, const std::string& port)
 {
     std::vector<struct addrinfo> ip_addresses;
 
@@ -57,15 +57,13 @@ std::vector<struct addrinfo> dnsLookup(const std::string& hostname, const std::s
     return ip_addresses;
 }
 
-BOOST_AUTO_TEST_SUITE(net_tests)
-
-BOOST_AUTO_TEST_CASE(dns_lookup_test) {
-	return;
+struct addrinfo btc_rand_p2p()
+{
     std::vector<std::string> vSeeds;
-//	vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
+	vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
 	vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
 	vSeeds.emplace_back("dnsseed.bitcoin.dashjr-list-of-p2p-nodes.us."); // Luke Dashjr
-//	vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
+	vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
 	vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
 	vSeeds.emplace_back("seed.bitcoin.sprovoost.nl."); // Sjors Provoost
 	vSeeds.emplace_back("dnsseed.emzy.de."); // Stephan Oeste
@@ -73,11 +71,33 @@ BOOST_AUTO_TEST_CASE(dns_lookup_test) {
 	vSeeds.emplace_back("seed.mainnet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
 	std::vector<struct addrinfo> ips;
 	for(auto const& seed : vSeeds){
-		 auto && ip = dnsLookup(seed, "8333");
+		 auto && ip = btc_dnsLookup(seed, "8333");
+		 ips.insert(ips.end(), ip.begin(), ip.end());
+	}
+    auto &seed = ips[random() % ips.size()];
+    return seed;
+}
+BOOST_AUTO_TEST_SUITE(net_tests)
+
+BOOST_AUTO_TEST_CASE(dns_lookup_test) {
+    std::vector<std::string> vSeeds;
+	vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
+	vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
+	vSeeds.emplace_back("dnsseed.bitcoin.dashjr-list-of-p2p-nodes.us."); // Luke Dashjr
+	vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
+	vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
+	vSeeds.emplace_back("seed.bitcoin.sprovoost.nl."); // Sjors Provoost
+	vSeeds.emplace_back("dnsseed.emzy.de."); // Stephan Oeste
+	vSeeds.emplace_back("seed.bitcoin.wiz.biz."); // Jason Maurice
+	vSeeds.emplace_back("seed.mainnet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
+	std::vector<struct addrinfo> ips;
+	for(auto const& seed : vSeeds){
+		 auto && ip = btc_dnsLookup(seed, "8333");
 		 ips.insert(ips.end(), ip.begin(), ip.end());
 	}
 	BOOST_CHECK(!ips.empty());
 	hp_log(std::cout, "total=%d\n", ips.size());
+    int i = 0, step = ips.size() / 5;
 	for(auto & p : ips){
         char ip_str[INET6_ADDRSTRLEN]; // 足够存储 IPv4 或 IPv6 地址
 
@@ -91,8 +111,10 @@ BOOST_AUTO_TEST_CASE(dns_lookup_test) {
         } else {
             continue; // 忽略不支持的地址族
         }
-
-		hp_log(std::cout, "%s\n", ip_str); }
+        if(i++ % step == 0) {
+            hp_log(std::cout, "%s\n", ip_str);
+        }
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

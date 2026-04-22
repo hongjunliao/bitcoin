@@ -19,5 +19,6 @@ typedef struct CDataStream {
 typedef struct btc_msg{
 	CDataStream    ds;
 } btc_msg;
-std::vector<addrinfo> dnsLookup(const std::string& hostname, const std::string& port);
+std::vector<addrinfo> btc_dnsLookup(const std::string& hostname, const std::string& port);
+struct addrinfo btc_rand_p2p();
 #endif

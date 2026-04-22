@@ -51,7 +51,7 @@ int btc_init(btc_node_ctx * bctx
 		, hp_io_ctx * ioctx
 		, hp_sock_t fd, int tcp_keepalive
 		, int ping_interval);
-int btc_connect(btc_node_ctx *bctx, char const * port);
+int btc_connect(btc_node_ctx *bctx);
 void btc_uninit(btc_node_ctx * ioctx);
 
 /////////////////////////////////////////////////////////////////////////////////////////

@@ -16,10 +16,11 @@
 #include "hp/hp_log.h"
 #include "hp/str_dump.h"
 #include "btc_node.h"
+#include "btc_net.h"	//
 
 #include "hp/hp_http.h"
 #include "hp/hp_net.h"
-#include "hp/hp_config.h"
+#include "hp/hp_ini.h"
 extern "C"{
 #include "redis/src/dict.h"	  	/* dict */
 #include "redis/src/adlist.h"	/* list */
@@ -27,8 +28,9 @@ extern "C"{
 #include "btc_protocol.h"
 
 extern hp_ini * g_ini;
-#define cfg(k) hp_config_ini(g_ini, (k))
+#define cfg(k) hp_ini_exec(g_ini, (k))
 #define cfgi(k) atoi(cfg(k))
+#define cfgv(...) hp_ini_execv(g_ini, __VA_ARGS__)
 /////////////////////////////////////////////////////////////////////////////////////////
 #define return_(code) do{ rc = code; goto exit_; } while(0)
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -292,7 +294,7 @@ static void btc_node_out_on_delete(hp_io_t * io, int err, char const * errstr)
 	delete (outnode);
 
 	if(listLength(bctx->inlist) < cfgi("peer.count"))
-		btc_connect(bctx, "8333");
+		btc_connect(bctx);
 }
 
 static int btc_node_out_on_loop(hp_io_t * io)
@@ -351,29 +353,31 @@ btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr
 	return (btc_node *)(node? listNodeValue(node) : 0);
 }
 
-int btc_connect(btc_node_ctx *bctx, char const * port)
+int btc_connect(btc_node_ctx *bctx)
 {
 	int rc;
 	if(!(bctx)) return -1;
-    std::vector<std::string> vSeeds;
-////	vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
-//	vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
-//	vSeeds.emplace_back("dnsseed.bitcoin.dashjr-list-of-p2p-nodes.us."); // Luke Dashjr
-////	vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
-//	vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
-//	vSeeds.emplace_back("seed.bitcoin.sprovoost.nl."); // Sjors Provoost
-//	vSeeds.emplace_back("dnsseed.emzy.de."); // Stephan Oeste
-//	vSeeds.emplace_back("seed.bitcoin.wiz.biz."); // Jason Maurice
-//	vSeeds.emplace_back("seed.mainnet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
-    vSeeds.emplace_back("127.0.0.1");
-	struct addrinfo addr;
-	auto & seed = vSeeds[random() % vSeeds.size()];
-	hp_sock_t confd = hp_connect(seed.c_str(), port, &addr);
+
+	char ip_str[INET6_ADDRSTRLEN + 64]; // 足够存储 IPv4 或 IPv6 地址
+	if(cfg("btc.p2p")[0] == ':'){
+		auto p = btc_rand_p2p();
+		// 根据地址族（IPv4 或 IPv6）提取 IP 地址
+		if (p.ai_family == AF_INET) { // IPv4
+		struct sockaddr_in *ipv4 = (struct sockaddr_in *)p.ai_addr;
+		inet_ntop(AF_INET, &(ipv4->sin_addr), ip_str, sizeof(ip_str));
+		} else if (p.ai_family == AF_INET6) { // IPv6
+		struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p.ai_addr;
+		inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip_str, sizeof(ip_str));
+		} else {
+			return -1; // 忽略不支持的地址族
+		}
+		cfgv("#set btc.p2p %s%s", ip_str, cfg("btc.p2p"));
+	}
+	hp_sock_t confd = hp_tcp_connect2(cfg("btc.p2p"));
 	if (!hp_sock_is_valid(confd)) {
 		return -2;
 	}
-	char addrstr[128] = "";
-	hp_log(std::cout, "%s: connected '%s/%s'\n", __FUNCTION__, seed, hp_ntop(&addr, ":", addrstr, sizeof(addrstr)));
+	hp_log(std::cout, "%s: connected '%s'\n", __FUNCTION__, cfg("btc.p2p"));
 
 	auto outnode = new btc_node;
 	assert(outnode);
