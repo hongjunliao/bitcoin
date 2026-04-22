@@ -72,5 +72,7 @@ btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr
 int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);
 
 /////////////////////////////////////////////////////////////////////////////////////////////
+int btc_node_send(btc_node * outnode, sds buf);
+
 
 #endif

@@ -353,6 +353,11 @@ btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr
 	return (btc_node *)(node? listNodeValue(node) : 0);
 }
 
+int btc_node_send(btc_node * outnode, sds buf)
+{
+	return hp_io_write(&outnode->io, buf, sdslen(buf), [](void * p){ assert(p); sdsfree((sds)p); }, 0);
+
+}
 int btc_connect(btc_node_ctx *bctx)
 {
 	int rc;
@@ -360,19 +365,25 @@ int btc_connect(btc_node_ctx *bctx)
 
 	char ip_str[INET6_ADDRSTRLEN + 64]; // 足够存储 IPv4 或 IPv6 地址
 	if(cfg("btc.p2p")[0] == ':'){
-		auto p = btc_rand_p2p();
-		// 根据地址族（IPv4 或 IPv6）提取 IP 地址
-		if (p.ai_family == AF_INET) { // IPv4
-		struct sockaddr_in *ipv4 = (struct sockaddr_in *)p.ai_addr;
-		inet_ntop(AF_INET, &(ipv4->sin_addr), ip_str, sizeof(ip_str));
-		} else if (p.ai_family == AF_INET6) { // IPv6
-		struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p.ai_addr;
-		inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip_str, sizeof(ip_str));
-		} else {
-			return -1; // 忽略不支持的地址族
-		}
-		cfgv("#set btc.p2p %s%s", ip_str, cfg("btc.p2p"));
+		do{
+				auto p = btc_rand_p2p();
+				// 根据地址族（IPv4 或 IPv6）提取 IP 地址
+				if (p.ai_family == AF_INET) { // IPv4
+					struct sockaddr_in *ipv4 = (struct sockaddr_in *)p.ai_addr;
+					auto ret = inet_ntop(AF_INET, &(ipv4->sin_addr), ip_str, sizeof(ip_str));
+					if(ret && strncmp(ip_str, "0.", 2) != 0 && strncmp(ip_str, "::", 2) != 0) break;
+				} else if (p.ai_family == AF_INET6) { // IPv6
+					struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p.ai_addr;
+					inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip_str, sizeof(ip_str));
+					continue;
+				} else {
+					continue;
+//					return -1; // 忽略不支持的地址族
+				}
+				cfgv("#set btc.p2p %s%s", ip_str, cfg("btc.p2p"));
+		}while(1);
 	}
+	hp_log(std::cout, "%s: connecting to '%s' ...\n", __FUNCTION__, cfg("btc.p2p"));
 	hp_sock_t confd = hp_tcp_connect2(cfg("btc.p2p"));
 	if (!hp_sock_is_valid(confd)) {
 		return -2;
@@ -386,39 +397,13 @@ int btc_connect(btc_node_ctx *bctx)
 	assert(rc == 0);
 	rc = hp_io_add(bctx->ioctx, (hp_io_t*) outnode, confd, s_btc_out_node_hdl);
 	assert(rc == 0);
-
-	/////////////////////////////////////////////////////////////////////////////////////////
-
-    CVersionMsg version_msg = {0};
-    version_msg.version = 70016; // Protocol version
-    version_msg.services = 1ULL | (1ULL << 10); // NODE_NETWORK | NODE_WITNESS
-    version_msg.timestamp = time(NULL);
-
-    // Serialize version message
-    uint8_t * message = new uint8_t[512];
-    size_t payload_len = serialize_version_msg(&version_msg, message + BTC_HDR_SIZE, 512 - BTC_HDR_SIZE);
-    if (payload_len == 0) {
-    	delete message;
-    	delete outnode;
-        return -3;
-    }
-//    pchMessageStart[0] = 0xf9;
-    MessageHeader header = {0}; assert(sizeof(MessageHeader) == BTC_HDR_SIZE);
-    memcpy(header.magic, "\xf9\xbe\xb4\xd9", 4); // Mainnet magic
-    strcpy(header.command, "version");
-    header.length = payload_len;
-    compute_checksum(message + BTC_HDR_SIZE, payload_len, header.checksum);
-
-    // Combine header and payload
-    memcpy(message, &header, BTC_HDR_SIZE);
-
-	rc = hp_io_write(&outnode->io, message, BTC_HDR_SIZE + header.length
-				, [](void * p){ assert(p); delete (uint8_t *)p; }, 0);
+	rc = btc_node_send(outnode, btc_p2p_ver_new());
 	assert(rc == 0);
-	hp_log(std::cout, "%s: sent, message=version, payload_len=%d\n", __FUNCTION__, header.length);
-
-//	outnode->io.addr = addr;
+	hp_log(std::cout, "%s: sent, message=version, payload_len=%d\n", __FUNCTION__, 0/*header.length*/);
 	listAddNodeTail(bctx->outlist, outnode);
+
+//	rc = hp_io_write(&outnode->io, message, BTC_HDR_SIZE + header.length, [](void * p){ assert(p); delete (uint8_t *)p; }, 0);
+//	outnode->io.addr = addr;
 	return 0;
 }
 

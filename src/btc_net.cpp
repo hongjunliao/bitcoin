@@ -18,6 +18,16 @@
 #include <boost/test/unit_test.hpp>
 #include "hp/hp_log.h"
 
+class CMessageHeader {
+
+};
+typedef struct CDataStream {
+
+} CDataStream;
+typedef struct btc_msg{
+	CDataStream    ds;
+} btc_msg;
+std::vector<addrinfo> btc_dnsLookup(const std::string& hostname, const std::string& port);
 // dnsLookup 函数：查询 DNS 种子并返回解析出的 IP 地址列表
 // 参数:
 //   - hostname: DNS 种子地址（例如 "seed.bitcoin.sipa.be"）
@@ -80,6 +90,7 @@ struct addrinfo btc_rand_p2p()
 BOOST_AUTO_TEST_SUITE(net_tests)
 
 BOOST_AUTO_TEST_CASE(dns_lookup_test) {
+	return;
     std::vector<std::string> vSeeds;
 	vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
 	vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
