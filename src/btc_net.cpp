@@ -51,7 +51,7 @@ std::vector<struct addrinfo> btc_dnsLookup(const std::string& hostname, const st
     // 调用 getaddrinfo 进行 DNS 解析
     int status = getaddrinfo(hostname.c_str(), port.c_str(), &hints, &result);
     if (status != 0) {
-        hp_log(std::cerr, "DNS lookup failed for '%s': '%s'\n", hostname, gai_strerror(status));
+        hp_log(stderr, "DNS lookup failed for '%s': '%s'\n", hostname, gai_strerror(status));
         return ip_addresses;
     }
 
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(dns_lookup_test) {
 		 ips.insert(ips.end(), ip.begin(), ip.end());
 	}
 	BOOST_CHECK(!ips.empty());
-	hp_log(std::cout, "total=%d\n", ips.size());
+	hp_log(stdout, "total=%d\n", ips.size());
     int i = 0, step = ips.size() / 5;
 	for(auto & p : ips){
         char ip_str[INET6_ADDRSTRLEN]; // 足够存储 IPv4 或 IPv6 地址
@@ -123,7 +123,7 @@ BOOST_AUTO_TEST_CASE(dns_lookup_test) {
             continue; // 忽略不支持的地址族
         }
         if(i++ % step == 0) {
-            hp_log(std::cout, "%s\n", ip_str);
+            hp_log(stdout, "%s\n", ip_str);
         }
     }
 }

@@ -19,18 +19,8 @@
 #include <openssl/sha.h> // For SHA-256 checksum
 #include "btc_protocol.h"
 
-typedef struct {
-    int32_t 	version;
-    uint64_t 	services;
-    int64_t 	timestamp;
-    int64_t 	service;	//   - 8 bytes (service bits)
-    char 		addrme[8];
-    char		v[10];
-} CVersionMsg;
 
 static void compute_checksum(const uint8_t *data, size_t len, uint8_t *checksum);
-// Serialize CVersionMsg (simplified, no full Bitcoin serialization)
-size_t serialize_version_msg(const CVersionMsg *msg, uint8_t *buffer, size_t max_len);
 
 // Compute SHA-256 checksum (first 4 bytes of double SHA-256)
 static void compute_checksum(const uint8_t *data, size_t len, uint8_t *checksum) {
@@ -41,53 +31,49 @@ static void compute_checksum(const uint8_t *data, size_t len, uint8_t *checksum)
     memcpy(checksum, hash2, 4);
 }
 
-//typedef struct {
-//    int32_t 	version;
-//    uint64_t 	services;
-//    int64_t 	timestamp;
-//    int64_t 	service;	//   - 8 bytes (service bits)
-//    char 		addrme[8];
-//    CNetAddr::Encoding	v;
-//} CVersionMsg;
-
-// Serialize CVersionMsg (simplified, no full Bitcoin serialization)
-size_t serialize_version_msg(const CVersionMsg *msg, uint8_t *buffer, size_t max_len)
+sds btc_p2pmsg_new(const char *command, void * payload, btc_p2p_hdr * hdr, btc_p2p_payload * pl)
 {
-	if(!(msg && buffer && max_len > 0)) return -1;
-	if(max_len < sizeof(CVersionMsg)) return -2;
-    size_t pos = 0;
-    int n[] = { sizeof(int32_t), sizeof(uint64_t), sizeof(int64_t),
-    			sizeof(int64_t), sizeof(char[8]), sizeof(char[10])};
-    void const * from[] = { &(msg->version), &(msg->services), &(msg->timestamp)
-    		, &(msg->service), (msg->addrme), &(msg->v)};
-    for(int i = 0; i < sizeof(n) / sizeof(n[0]); ++i){
-        memcpy(buffer + pos, from[i], n[i]);
-        pos += n[i];
-    }
-    return pos;
-}
-
-sds btc_p2p_ver_new()
-{
-    CVersionMsg version_msg = {0};
-    version_msg.version = 70016; // Protocol version
-    version_msg.services = 1ULL | (1ULL << 10); // NODE_NETWORK | NODE_WITNESS
-    version_msg.timestamp = time(NULL);
-
-    // Serialize version message
-    sds message = sdsnewlen(0, 512);
-    size_t payload_len = serialize_version_msg(&version_msg, (uint8_t *)message + BTC_HDR_SIZE, 512 - BTC_HDR_SIZE);
-    assert(payload_len > 0);
-//    pchMessageStart[0] = 0xf9;
-    MessageHeader header = {0}; assert(sizeof(MessageHeader) == BTC_HDR_SIZE);
+	sds ret = sdsnewlen(0, BTC_HDR_SIZE);
+	btc_p2p_hdr header = { 0 };
     memcpy(header.magic, "\xf9\xbe\xb4\xd9", 4); // Mainnet magic
-    strcpy(header.command, "version");
-    header.length = payload_len;
-    compute_checksum((uint8_t *)message + BTC_HDR_SIZE, payload_len, header.checksum);
+    strcpy(header.command, command);
 
-    // Combine header and payload
-    memcpy(message, &header, BTC_HDR_SIZE);
-    sdssetlen(message, BTC_HDR_SIZE + header.length);
+    if(strncmp(command, "version", 7) == 0){
+		// Protocol version
+		// NODE_NETWORK | NODE_WITNESS
+		CVersionMsg version = { .version = 70016, .services = 1ULL | (1ULL << 10), .timestamp = time(NULL)},
+								* msg = payload? (CVersionMsg *)payload : &version;
+		size_t n[] = { sizeof(msg->version), sizeof(msg->services), sizeof(msg->timestamp), sizeof(msg->addr_recv_services),
+				sizeof(msg->addr_recv_IP_address), sizeof(msg->addr_recv_port), sizeof(msg->addr_trans_services), sizeof(msg->addr_trans_IP_address),
+				sizeof(msg->addr_trans_port), sizeof(msg->nonce), sizeof(msg->user_agent_bytes), sizeof(msg->start_height)
+		};
+	    void const * from[] = { &(msg->version), &(msg->services), &(msg->timestamp), &(msg->addr_recv_services),
+				&(msg->addr_recv_IP_address), &(msg->addr_recv_port), &(msg->addr_trans_services), &(msg->addr_trans_IP_address),
+				&(msg->addr_trans_port), &(msg->nonce), &(msg->user_agent_bytes), &(msg->start_height)
+		};
+	    size_t len = 0;
+		for(int i = 0; i < sizeof(n)/sizeof(n[0]); ++i){
+			len += n[i];
+			ret = sdscatlen(ret, from[i], n[i]);
+		}
+		compute_checksum((uint8_t *)ret + BTC_HDR_SIZE, len, header.checksum);
+		header.length = len;
 
-    return message;
+		if(pl) pl->version = version;
+	}
+	else if(strncmp(command, "ping", 4) == 0){
+	}
+	else if(strncmp(command, "verack", 6) == 0){
+		compute_checksum((uint8_t *)ret + BTC_HDR_SIZE, 0, header.checksum);
+		header.length = 0;
+	}
+	else{
+	}
+
+    memcpy(ret, &header, BTC_HDR_SIZE);
+    if(hdr) *hdr = header;
+
+    return ret;
 }
+
+
