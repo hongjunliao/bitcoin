@@ -5,7 +5,6 @@
  * */
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-#include "btc_net.h"
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -17,16 +16,10 @@
 #include <cstring>
 #include <boost/test/unit_test.hpp>
 #include "hp/hp_log.h"
+#include "btc_inc.h"
+#include "btc_net.h"
+#include "btc_node.h"
 
-class CMessageHeader {
-
-};
-typedef struct CDataStream {
-
-} CDataStream;
-typedef struct btc_msg{
-	CDataStream    ds;
-} btc_msg;
 std::vector<addrinfo> btc_dnsLookup(const std::string& hostname, const std::string& port);
 // dnsLookup 函数：查询 DNS 种子并返回解析出的 IP 地址列表
 // 参数:
@@ -87,6 +80,7 @@ struct addrinfo btc_rand_p2p()
     auto &seed = ips[random() % ips.size()];
     return seed;
 }
+
 BOOST_AUTO_TEST_SUITE(net_tests)
 
 BOOST_AUTO_TEST_CASE(dns_lookup_test) {

@@ -98,8 +98,8 @@ int btc_main(int argc, char ** argv)
 	hp_log(stdout, "%s: listening on BTC/HTTP port=%d/%d, waiting for connection ...\n", __FUNCTION__
 			, cfgi("btc.port"), cfgi("http.port"));
 
-        btc_connect(bctx);
-        for (;;) {
+	btc_connect(bctx);
+	for (;;) {
 		hp_io_run(ioctx, 1);
 	}
 

@@ -19,7 +19,7 @@
 #include "btc_node.h"
 #include "btc_net.h"	//
 #include "btc_log.h"
-
+#include "btc_inc.h"
 #include "hp/hp_http.h"
 #include "hp/hp_net.h"
 #include "hp/hp_ini.h"
@@ -34,7 +34,6 @@ extern hp_ini * g_ini;
 #define cfgi(k) atoi(cfg(k))
 #define cfgv(...) hp_ini_execv(g_ini, __VA_ARGS__)
 /////////////////////////////////////////////////////////////////////////////////////////
-#define return_(code) do{ rc = code; goto exit_; } while(0)
 /////////////////////////////////////////////////////////////////////////////////////////
 
 /*====================== Hash table type implementation  ==================== */
@@ -138,71 +137,6 @@ static hp_io_t *  btc_node_in_on_new(hp_io_t * cio, hp_sock_t fd)
 	return (hp_io_t *)innode;
 }
 
-static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len
-	, void ** hdrp, void ** bodyp)
- {
-	assert(io && hdrp && bodyp);
-	int rc = 0;
-	auto innode = (btc_node*) io;
-	//消息长度至少达到BTC_HDR_SIZE,否则不是一个完整的bitcoin 消息
-	if(!(*len >= BTC_HDR_SIZE)) { return(0); }
-
-	// Read header
-	auto hdr = new btc_p2p_hdr;
-	auto payload = new btc_p2p_payload;
-	memcpy(hdr, buf, BTC_HDR_SIZE);
-
-	//magic要匹配，否则不是bitcoin 消息(比如是垃圾数据)
-	if(!(memcmp(hdr->magic, "\xf9\xbe\xb4\xd9", 4) == 0)){
-		*len = 0;
-		return_(-2);
-	}
-	//匹配到了一个合法bitcoin消息，检查消息的playload部分是否已同时到达
-	if(*len - BTC_HDR_SIZE < hdr->length){
-		return_(0);
-	}
-	//剩余的部分是下一个消息的数据(如果不为0的话)
-	*len -= (BTC_HDR_SIZE + hdr->length);
-	*hdrp = hdr;
-	*bodyp = payload;
-	// now parse payload
-	if(strncmp(hdr->command, "verack", 4) == 0){
-		payload->version.version = 2;
-//		sdsnewlen(buf + BTC_HDR_SIZE, phdr->length);
-	}
-
-	rc = 1;
-//	hp_log(stdout, "%s: message=%s, payload_len=%d\n", __FUNCTION__, phdr->command, phdr->length);
-exit_:
-	if(rc <= 0) { delete hdr; delete payload; }
-	return rc;
-}
-
-static int btc_node_on_dispatch(hp_io_t * io, void * hdrp, void * bodyp)
-{
-	assert(io && hdrp);
-	int rc;
-	auto node = (btc_node*) io;
-	auto hdr = (btc_p2p_hdr *)hdrp;
-	auto payload = (btc_p2p_payload *)bodyp;
-	btc_log_p2p(hdr, payload, 0);
-
-	btc_p2p_hdr outhdr{0}; btc_p2p_payload outpl{0};
-	char const * ack = "version";
-	if(strncmp(hdr->command, "version", 7) == 0) 	 ack = "verack";
-	else if(strncmp(hdr->command, "ping", 4) == 0)	 ack = "pong";
-	else if(strncmp(hdr->command, "verack", 4) == 0) ack = "verack";
-
-	rc = btc_node_send(node, btc_p2pmsg_new(ack, 0, &outhdr, &outpl));
-	assert(rc == 0);
-	btc_log_p2p(&outhdr, &outpl, 1);
-
-	delete (payload);
-	delete hdr;
-
-	return rc;
-}
-
 static int btc_node_in_on_loop(hp_io_t * io)
 {
 	assert(io);
@@ -236,6 +170,54 @@ static void btc_node_in_on_delete(hp_io_t * io, int err, char const * errstr)
 
 	btc_node_uninit(innode);
 	delete(innode);
+}
+
+static int btc_node_on_parse(hp_io_t * io, char * buf, size_t * len, void ** hdrp, void ** bodyp)
+{
+	assert(io && hdrp && bodyp);
+	auto innode = (btc_node*) io;
+
+	auto hdr = new btc_p2p_hdr;
+	auto pl = new btc_p2p_payload;
+	int rc = 0;
+	if(btc_p2pmsg_parse(buf, *len, hdr, pl) == 0){
+		rc = 1;
+		//剩余的部分是下一个消息的数据(如果不为0的话)
+		*len -= (BTC_HDR_SIZE + hdr->length);
+		*hdrp = hdr;
+		*bodyp = pl;
+	}
+	else { delete hdr; delete pl; }
+	return rc;
+}
+
+static int btc_node_on_dispatch(hp_io_t * io, void * hdrp, void * bodyp)
+{
+	assert(io && hdrp);
+	int rc;
+	auto node = (btc_node*) io;
+	auto hdr = (btc_p2p_hdr *)hdrp;
+	auto pl = (btc_p2p_payload *)bodyp;
+	btc_log_p2p(hdr, pl, 0);
+
+	btc_p2p_hdr outhdr{0}; btc_p2p_payload outpl{0};
+	char const * ack = hdr->command;
+	if(strncmpl(hdr->command, "version") == 0) 	 		ack = "verack";
+	else if(strncmpl(hdr->command, "ping") == 0)	 	ack = "pong";
+	else if(strncmpl(hdr->command, "verack") == 0) 		ack = "verack";
+	else if(strncmpl(hdr->command, "wtxidrelay") == 0) 	ack = "";
+	else if(strncmpl(hdr->command, "sendaddrv2") == 0) 	ack = "";
+
+	if(strlen(ack) > 0){
+		rc = btc_node_send(node, btc_p2pmsg_new(hdr, pl, &outhdr, &outpl));
+		assert(rc == 0);
+		btc_log_p2p(&outhdr, &outpl, 1);
+	}
+
+	delete (pl);
+	delete hdr;
+
+	return rc;
 }
 
 /* callbacks for btc_node in */
@@ -373,7 +355,7 @@ int btc_connect(btc_node_ctx *bctx)
 	assert(rc == 0);
 
 	btc_p2p_hdr outhdr; btc_p2p_payload outpl;
-	rc = btc_node_send(outnode, btc_p2pmsg_new("version", 0, &outhdr, &outpl));
+	rc = btc_node_send(outnode, btc_p2pmsg_newc("version", 0, &outhdr, &outpl));
 	assert(rc == 0);
 
 	btc_log_p2p(&outhdr, &outpl, 1);
