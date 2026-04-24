@@ -117,14 +117,4 @@ exit_:
 
 	return rc;
 }
-
-bool init_function() {
-    return true;
-}
-
-int main(int argc, char ** argv)
-{
-	boost::unit_test::unit_test_main(init_function, argc, argv);
-	return btc_main(argc, argv);
-}
 /////////////////////////////////////////////////////////////////////////////////////////////
