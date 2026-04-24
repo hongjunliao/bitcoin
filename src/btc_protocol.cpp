@@ -35,23 +35,16 @@ static void compute_checksum(const uint8_t *data, size_t len, uint8_t *checksum)
     memcpy(checksum, hash2, 4);
 }
 
-sds btc_p2pmsg_newc(const char *command, void * inpl, btc_p2p_hdr * outhdr, btc_p2p_payload * outpl)
+sds btc_p2pmsg_reply(const btc_p2p_hdr *inhdr, btc_p2p_payload const * inpl, btc_p2p_hdr * outhdr, btc_p2p_payload * outpl)
 {
-	btc_p2p_hdr hdr{0};
-	strcpy(hdr.command, command);
-	return btc_p2pmsg_new(&hdr, 0, outhdr, outpl);
-}
+	if(!(outhdr)) return 0;
 
-sds btc_p2pmsg_new(const btc_p2p_hdr *inhdr, btc_p2p_payload const * inpl, btc_p2p_hdr * outhdr, btc_p2p_payload * outpl)
-{
-	if(!(inhdr)) return 0;
-
+	memset(outhdr, 0, sizeof(*outhdr));
+    memcpy(outhdr->magic, "\xf9\xbe\xb4\xd9", 4); // Mainnet magic
 	sds ret = sdsnewlen(0, BTC_HDR_SIZE);
-	btc_p2p_hdr header = { 0 };
-    memcpy(header.magic, "\xf9\xbe\xb4\xd9", 4); // Mainnet magic
-    strcpy(header.command, inhdr->command);
 
-    if(strncmpl(inhdr->command, "version") == 0){
+    if(!inhdr){	//version
+        strcpy(outhdr->command, "version");
 		size_t len = 0;
 		// Protocol version
 		// NODE_NETWORK | NODE_WITNESS
@@ -72,36 +65,45 @@ sds btc_p2pmsg_new(const btc_p2p_hdr *inhdr, btc_p2p_payload const * inpl, btc_p
 			len += n[i];
 			ret = sdscatlen(ret, from[i], n[i]);
 		}
-		header.length = len;
+		outhdr->length = len;
 
 		if(outpl) outpl->version = version;
 	}
 	else if(strncmpl(inhdr->command, "ping") == 0){
 		assert(inpl);
+	    strcpy(outhdr->command, "pong");
 		btc_p2p_payload::PONG pong{.c = inpl->pong.c};
 		ret = sdscatlen(ret, &pong.c, sizeof(pong.c));
-		header.length = sizeof(pong.c);
-	    strcpy(header.command, "pong");
+		outhdr->length = sizeof(pong.c);
 	}
-	else if(strncmpl(inhdr->command, "verack") == 0){
-		header.length = 0;
+	else if(strncmpl(inhdr->command, "version") == 0 || strncmpl(inhdr->command, "verack") == 0){
+	    strcpy(outhdr->command, "verack");
 	}
 	else if(strncmpl(inhdr->command, "sendcmpct") == 0){
-		btc_p2p_payload::SENDCMPCT sendcmpct{.c = ""};
-//		ret = sdscatlen(ret, &sendcmpct.c, sizeof(sendcmpct));
+		btc_p2p_payload::CMPCTBLOCK pl;
+		ret = sdscatlen(ret, &pl, sizeof(pl));
+		outhdr->length = sizeof(pl);
 	}
 	else if(strncmpl(inhdr->command, "wtxidrelay") == 0){
 	}
 	else if(strncmpl(inhdr->command, "sendaddrv2") == 0){
 	}
 	else if(strncmpl(inhdr->command, "getheaders") == 0){
+	    strcpy(outhdr->command, "headers");
+		btc_p2p_payload::HEADERS pl{.count = 0};
+		ret = sdscatlen(ret, &pl, sizeof(pl));
+		outhdr->length = sizeof(pl);
 	}
 	else if(strncmpl(inhdr->command, "feefilter") == 0){
 	}
 
-	compute_checksum((uint8_t *)ret + BTC_HDR_SIZE, header.length, header.checksum);
-    if(outhdr) *outhdr = header;
-    memcpy(ret, &header, BTC_HDR_SIZE);
+    if(outhdr->command[0] == '\0'){
+	    strcpy(outhdr->command, "unkown");
+	    outhdr->length = 0;
+	}
+
+	compute_checksum((uint8_t *)ret + BTC_HDR_SIZE, outhdr->length, outhdr->checksum);
+    memcpy(ret, outhdr, BTC_HDR_SIZE);
 
     return ret;
 }

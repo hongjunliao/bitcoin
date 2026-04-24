@@ -41,6 +41,11 @@
 #include "hp/hp_net.h"
 #include "hp/hp_ini.h"
 
+/////////////////////////////////////////////////////////////////////////////////////////
+int btc_inih_handler(void* user, const char* section, const char* name,const char* value);
+static hp_ini iniobj = {.parser = btc_inih_handler };
+//global default configure
+hp_ini * g_ini = &iniobj;
 /////////////////////////////////////////////////////////////////////////////////////////////
 extern hp_ini * g_ini;
 #define cfg(k) hp_ini_exec(g_ini, (k))
@@ -171,18 +176,19 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdrp, void * bodyp)
 	btc_log_p2p(hdr, pl, 0);
 
 	btc_p2p_hdr outhdr{0}; btc_p2p_payload outpl{0};
-	char const * ack = hdr->command;
-	if(strncmpl(hdr->command, "version") == 0) 	 		ack = "verack";
-	else if(strncmpl(hdr->command, "ping") == 0)	 	ack = "pong";
-	else if(strncmpl(hdr->command, "verack") == 0) 		ack = "verack";
-	else if(strncmpl(hdr->command, "wtxidrelay") == 0) 	ack = "";
-	else if(strncmpl(hdr->command, "sendaddrv2") == 0) 	ack = "";
+	rc = btc_node_send(node, btc_p2pmsg_reply(hdr, pl, &outhdr, &outpl));
+	assert(rc == 0);
+	btc_log_p2p(&outhdr, &outpl, 1);
 
-	if(strlen(ack) > 0){
-		rc = btc_node_send(node, btc_p2pmsg_new(hdr, pl, &outhdr, &outpl));
-		assert(rc == 0);
-		btc_log_p2p(&outhdr, &outpl, 1);
-	}
+//	char const * ack = hdr->command;
+//	if(strncmpl(hdr->command, "version") == 0) 	 		ack = "verack";
+//	else if(strncmpl(hdr->command, "ping") == 0)	 	ack = "pong";
+//	else if(strncmpl(hdr->command, "verack") == 0) 		ack = "verack";
+//	else if(strncmpl(hdr->command, "wtxidrelay") == 0) 	ack = "";
+//	else if(strncmpl(hdr->command, "sendaddrv2") == 0) 	ack = "";
+//
+//	if(strlen(ack) > 0){
+//	}
 
 	delete (pl);
 	delete hdr;
@@ -278,7 +284,7 @@ static int btc_connect(btc_node_ctx *bctx)
 	assert(rc == 0);
 
 	btc_p2p_hdr outhdr; btc_p2p_payload outpl;
-	rc = btc_node_send(outnode, btc_p2pmsg_newc("version", 0, &outhdr, &outpl));
+	rc = btc_node_send(outnode, btc_p2pmsg_reply(0, 0, &outhdr, &outpl));
 	assert(rc == 0);
 
 	btc_log_p2p(&outhdr, &outpl, 1);

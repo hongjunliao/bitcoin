@@ -40,13 +40,16 @@ typedef union {
 	struct WTXIDRELAY{ char c[0]; } wtxidrelay;
 	struct { char c[0]; } sendaddrv2;
 	struct PONG { int64_t c; } pong;
-	struct SENDCMPCT { char c[9]; } sendcmpct;
-	struct { char c[0]; } getheaders;
+	struct SENDCMPCT { bool sendcmpct_hb; uint64_t sendcmpct_version; } sendcmpct;
+	struct CMPCTBLOCK { char header[80]; } cmpctblock;
+	struct HEADERS { uint8_t count; char block_hdr[3][80]; } headers; //<-getheaders
 	struct { char c[0]; } feefilter;
 } btc_p2p_payload;
 
-sds btc_p2pmsg_new(const btc_p2p_hdr *inhdr, btc_p2p_payload const * inpl, btc_p2p_hdr * outhdr, btc_p2p_payload * outpl);
-sds btc_p2pmsg_newc(const char *command, void * inpl, btc_p2p_hdr * outhdr, btc_p2p_payload * outpl);
+/**!
+ * @param inhdr: NULL for "version" message
+ */
+sds btc_p2pmsg_reply(const btc_p2p_hdr *inhdr, btc_p2p_payload const * inpl, btc_p2p_hdr * outhdr, btc_p2p_payload * outpl);
 
 /*
  * @return: 0 if OK

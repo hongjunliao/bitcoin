@@ -8,9 +8,6 @@
 #ifndef BTC_NET_H
 #define BTC_NET_H
 #include <netdb.h>
-#include <string>
-#include <vector>
-
 struct addrinfo btc_rand_p2p();
 
 #endif
