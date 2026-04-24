@@ -8,21 +8,16 @@
 #ifndef BTC_NODE_H
 #define BTC_NODE_H
 
-#include <functional>
-#include <openssl/rand.h>
 #include "hp/hp_io_t.h"
-#include "hp/sdsinc.h"
 #ifdef __cplusplus
 extern "C" {
-#include "redis/src/dict.h"	  /* dict */
 #include "redis/src/adlist.h"	  /* list */
-#include "hp/hp_http.h"
 #endif
 #ifdef __cplusplus
 }
 #endif
 
-struct btc_node_ctx {
+typedef struct  {
 	hp_io_ctx  * ioctx;
 	hp_io_t 	listenio;
 	int rping_interval; /* redis ping-pong interval */
@@ -30,14 +25,12 @@ struct btc_node_ctx {
 	list * inlist;		/* node coming */
 	list * outlist;		/* nodes sent out */
 
-};
+} btc_node_ctx;
 
-class CNode {
-public:
+typedef struct {
 	hp_io_t io;
 	btc_node_ctx * bctx;
-};
-typedef class CNode btc_node;
+} btc_node;
 
 
 
@@ -48,10 +41,9 @@ void btc_node_uninit(btc_node * node);
 /////////////////////////////////////////////////////////////////////////////////////////
 
 int btc_init(btc_node_ctx * bctx
-		, hp_io_ctx * ioctx
+		, hp_io_ctx * ioctx, hp_iohdl hdl
 		, hp_sock_t fd, int tcp_keepalive
 		, int ping_interval);
-int btc_connect(btc_node_ctx *bctx);
 void btc_uninit(btc_node_ctx * ioctx);
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -68,11 +60,6 @@ btc_node * btc_out_find(btc_node_ctx * bctx, void * key, int (* match)(void *ptr
  */
 #define btc_in_count(bctx) (listLength(bctx->inlist))
 /////////////////////////////////////////////////////////////////////////////////////////
-
-int btc_http_process(struct hp_http * http, hp_httpreq * req, struct hp_httpresp * resp);
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-int btc_node_send(btc_node * outnode, sds buf);
 
 
 #endif
