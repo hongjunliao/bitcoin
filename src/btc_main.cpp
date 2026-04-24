@@ -175,20 +175,21 @@ static int btc_node_on_dispatch(hp_io_t * io, void * hdrp, void * bodyp)
 	auto pl = (btc_p2p_payload *)bodyp;
 	btc_log_p2p(hdr, pl, 0);
 
-	btc_p2p_hdr outhdr{0}; btc_p2p_payload outpl{0};
-	rc = btc_node_send(node, btc_p2pmsg_reply(hdr, pl, &outhdr, &outpl));
-	assert(rc == 0);
-	btc_log_p2p(&outhdr, &outpl, 1);
 
-//	char const * ack = hdr->command;
-//	if(strncmpl(hdr->command, "version") == 0) 	 		ack = "verack";
-//	else if(strncmpl(hdr->command, "ping") == 0)	 	ack = "pong";
-//	else if(strncmpl(hdr->command, "verack") == 0) 		ack = "verack";
-//	else if(strncmpl(hdr->command, "wtxidrelay") == 0) 	ack = "";
-//	else if(strncmpl(hdr->command, "sendaddrv2") == 0) 	ack = "";
-//
-//	if(strlen(ack) > 0){
-//	}
+	char const * ack = "";
+	if(strncmpl(hdr->command, "version") == 0) 	 		ack = "verack";
+	else if(strncmpl(hdr->command, "ping") == 0)	 	ack = "pong";
+	else if(strncmpl(hdr->command, "verack") == 0) 		ack = "verack";
+	else if(strncmpl(hdr->command, "wtxidrelay") == 0) 	ack = "";
+	else if(strncmpl(hdr->command, "sendaddrv2") == 0) 	ack = "";
+
+	if(strlen(ack) > 0){
+		btc_p2p_hdr outhdr{0}; btc_p2p_payload outpl{0};
+		rc = btc_node_send(node, btc_p2pmsg_reply(hdr, pl, &outhdr, &outpl));
+		assert(rc == 0);
+		btc_log_p2p(&outhdr, &outpl, 1);
+	}
+	else hp_log(stdout, "%s: unsupported message '%s'\n", __FUNCTION__, hdr->command);
 
 	delete (pl);
 	delete hdr;
