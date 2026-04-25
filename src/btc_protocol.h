@@ -10,6 +10,10 @@
 #define BTC_PROTOCOL__H
 #include <stdint.h>
 #include "hp/sdsinc.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 // Bitcoin network message header
 typedef struct {
     uint8_t magic[4];
@@ -19,6 +23,11 @@ typedef struct {
 } btc_p2p_hdr;
 
 #define BTC_HDR_SIZE (sizeof(btc_p2p_hdr))
+/**
+ * The maximum size of a serialized object in bytes or number of elements
+ * (for eg vectors) when the size is encoded as CompactSize.
+ */
+static constexpr uint64_t MAX_SIZE = 0x02000000;
 
 typedef union {
 	struct VERSION {
@@ -32,7 +41,7 @@ typedef union {
 		char		addr_trans_IP_address[16];
 		uint16_t	addr_trans_port	;
 		uint64_t	nonce;
-		uint8_t 	user_agent_bytes; 	//compactSize
+		uint32_t 	user_agent_bytes; 	//compactSize
 		char		user_agent[32];		//Required if user_agent bytes > 0
 		int32_t		start_height;
 		bool		relay;
@@ -45,6 +54,10 @@ typedef union {
 	struct HEADERS { uint8_t count; char block_hdr[3][80]; } headers; //<-getheaders
 	struct { char c[0]; } feefilter;
 } btc_p2p_payload;
+
+#ifdef __cplusplus
+}
+#endif
 
 /**!
  * @param inhdr: NULL for "version" message

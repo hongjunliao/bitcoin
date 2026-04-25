@@ -5,16 +5,27 @@
  * */
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-#include <boost/test/unit_test.hpp>
 #include "btc_log.h"
-#include "btc_test.h"
+#include <boost/test/unit_test.hpp>
+#include <time.h>
+#include "btc_inc.h"
 #include "btc_protocol.h"
 #include <iostream>
-#include <hp/hp_log.h>
 
-int btc_log_p2p( btc_p2p_hdr const * hdr, btc_p2p_payload const * payload, int flags)
+int btc_log_p2p( btc_p2p_hdr const * hdr, btc_p2p_payload const * pl, int flags)
 {
-	if(!(hdr)) return -1;
+	if(!(hdr && pl)) return -1;
+
+	sds plbuf = sdsnew(hdr->command);
+	if(strncmpl(hdr->command, "ping") == 0) {
+		plbuf = sdscatprintf(plbuf, ":%u", (uint32_t)pl->pong.c);
+	}
+	else if(strncmpl(hdr->command, "version") == 0) {
+		char tbuf[128] = "";
+		strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", localtime(&pl->version.timestamp));
+
+		plbuf = sdscatprintf(plbuf, ":timestamp=%s;agent=%s", tbuf, pl->version.user_agent);
+	}
 
 	hp_log(stdout, "%s%s\n"
 					   "\tmagic:    %X%X%X%X\n"
@@ -28,7 +39,9 @@ int btc_log_p2p( btc_p2p_hdr const * hdr, btc_p2p_payload const * payload, int f
 			hdr->command,
 			hdr->length,
 			hdr->checksum[0],hdr->checksum[1],hdr->checksum[2],hdr->checksum[3],
-			"(payload)");
+			plbuf);
+
+	sdsfree(plbuf);
 	return 0;
 }
 
