@@ -14,18 +14,18 @@ T btc_ec_add(T a, T b, T x1, T y1, T x2, T y2, T & x, T & y)
 {
 	//至少有一个无穷远点
 	if(x1 == y1 && y1 == 0) { x = x2; y = y2; return x2; };
-	if(x2 == y2 == 0) { x = x1; y = y1; return x1; };
+	if(x2 == y2 && y2 == 0) { x = x1; y = y1; return x1; };
 	if(x1 == x2 && x2 == 0 && y1 == y2 && y2 == 0) { x = y = 0; return 0; }
 	if(x1 == x2 && y1 != y2) { x = y = 0; return 0; }
 	//相同点， 相切
 	if(x1 == x2 && y1 == y2){
-		double s = (3 * x1 * x1 + a) / (2 * (double)y1);
+		auto s = (3 * x1 * x1 + a) / (2 * y1);
 		x = s * s - 2 * x1;
 		y = s * (x1 - x) - y1;
 		return x;
 	}
 	//2个不同点，计算斜率
-	double s = (y2 - y1) / (double)(x2 - x1);
+	auto s = (y2 - y1) / (x2 - x1);
 	x = s * s - x1 - x2;
 	y = s * ( x1 - x) - y1;
 	return x;
@@ -37,7 +37,7 @@ private:
     int prime;
 
 public:
-    btc_fe(int num):num(num), prime(num){}
+    btc_fe(int num = 0):num(num), prime(num){}
     btc_fe(int num, int prime) : num(num), prime(prime) {
        brequire(!(num >= prime || num < 0));
     }
@@ -245,6 +245,12 @@ BOOST_AUTO_TEST_CASE(ec_int)
 BOOST_AUTO_TEST_CASE(ec_fe)
 {
 	ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(192, 223), btc_fe(105, 223)};
-
+	{
+		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(170, 223), btc_fe(142, 223)};
+		ec_point<btc_fe> p2{btc_fe(0, 223), btc_fe(7, 223), btc_fe(60, 223), btc_fe(139, 223)};
+		ec_point<btc_fe> P3{btc_fe(0, 223), btc_fe(7, 223), btc_fe(220, 223), btc_fe(181, 223)};
+		auto p3 = p1 + p2;
+		brequire(p3 == P3);
+	}
 }
 BOOST_AUTO_TEST_SUITE_END()
