@@ -7,10 +7,10 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 #include "btc_inc.h"
-class ec_point;
 #define ec_none(a, b) ec_point{0, 0, (a), (b)}
 
-int btc_ec_add(int a, int b, int x1, int y1, int x2, int y2, int & x, int & y)
+template <typename T>
+T btc_ec_add(T a, T b, T x1, T y1, T x2, T y2, T & x, T & y)
 {
 	//至少有一个无穷远点
 	if(x1 == y1 && y1 == 0) { x = x2; y = y2; return x2; };
@@ -37,6 +37,7 @@ private:
     int prime;
 
 public:
+    btc_fe(int num):num(num), prime(num){}
     btc_fe(int num, int prime) : num(num), prime(prime) {
        brequire(!(num >= prime || num < 0));
     }
@@ -124,12 +125,13 @@ public:
     int getPrime() const { return prime; }
 };
 
+template<typename T>
 class ec_point{
-	int _a, _b, _x, _y;
+	T _a, _b, _x, _y;
 public:
-	ec_point(int a, int b, int x, int y): _x(x),  _y(y), _a(a),  _b(b){
+	ec_point(T a, T b, T x, T y): _x(x),  _y(y), _a(a),  _b(b){
 		if(!(x == y && y == 0)){
-			double l = y * y, r = x * x * x + a * x  + b;
+			auto l = y * y, r = x * x * x + a * x  + b;
 			brequire(l == r);
 		}
 	}
@@ -139,7 +141,7 @@ public:
 	ec_point operator +(ec_point const & p)
 	{
 		if(!(_a == p._a && _b == p._b)) return ec_none(_a, _b);
-		int x, y;
+		T x, y;
 		btc_ec_add(_a, _b, _x, _y, p._x, p._y, x, y);
 		return ec_point(_a, _b, x, y);
 	}
@@ -221,23 +223,28 @@ BOOST_AUTO_TEST_CASE(fe) {
         brequire((a3.pow(26) * b3) == btc_fe(13, 31));
     }
 }
-BOOST_AUTO_TEST_CASE(ec)
+BOOST_AUTO_TEST_CASE(ec_int)
 {
-	ec_point p1{5, 7, -1, -1};
+	ec_point<int> p1{5, 7, -1, -1};
 
 	int x, y; btc_ec_add(5, 7, 2, 5, -1, -1, x, y);
 	brequire( x == 3 && y == -7);
 
 	//不同点, 斜率
 	{
-		ec_point p3 = ec_point{5, 7, 2, 5} + ec_point{5, 7, -1, -1}, P3{5, 7, 3, -7};
+		ec_point<int> p3 = ec_point<int>{5, 7, 2, 5} + ec_point<int>{5, 7, -1, -1}, P3{5, 7, 3, -7};
 		brequire(p3 == P3);
 	}
 	//相同点,切线
 	{
-		ec_point p3 = ec_point{5, 7, -1, -1} + ec_point{5, 7, -1, -1}, P3{5, 7, 18, 77};
+		ec_point<int> p3 = ec_point<int>{5, 7, -1, -1} + ec_point<int>{5, 7, -1, -1}, P3{5, 7, 18, 77};
 		brequire(p3 == P3);
 	}
+
+}
+BOOST_AUTO_TEST_CASE(ec_fe)
+{
+	ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(192, 223), btc_fe(105, 223)};
 
 }
 BOOST_AUTO_TEST_SUITE_END()
