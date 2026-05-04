@@ -7,7 +7,7 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 #include "btc_inc.h"
-#define ec_none(a, b) ec_point{0, 0, (a), (b)}
+#define ec_none(a, b) ec_point{(a), (b), 0, 0}
 
 template <typename T>
 T btc_ec_add(T a, T b, T x1, T y1, T x2, T y2, T & x, T & y)
@@ -138,12 +138,34 @@ public:
 	bool operator == (ec_point const & rhs) const {
 		return _x == rhs._x && _y == rhs._y && _a == rhs._a && _b == rhs._b;
 	}
-	ec_point operator +(ec_point const & p)
+	bool operator != (ec_point const & rhs) const { return !(*this == rhs); }
+	ec_point operator +(ec_point const & p) const
 	{
 		if(!(_a == p._a && _b == p._b)) return ec_none(_a, _b);
 		T x, y;
 		btc_ec_add(_a, _b, _x, _y, p._x, p._y, x, y);
 		return ec_point(_a, _b, x, y);
+	}
+	ec_point& operator +=(ec_point const & p)
+	{
+		return *this = *this + p;
+	}
+	ec_point operator *(int n) const
+	{
+		ec_point ret(*this);
+		for(;n > 1;--n)
+			ret = ret + *this;
+		return ret;
+	}
+	int get_order() const
+	{
+		int n = 1;
+		auto next = *this;
+		while(next != ec_none(this->_a, this->_b)){
+			next += *this;
+			++n;
+		}
+		return n;
 	}
 };
 
@@ -245,6 +267,7 @@ BOOST_AUTO_TEST_CASE(ec_int)
 BOOST_AUTO_TEST_CASE(ec_fe)
 {
 	ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(192, 223), btc_fe(105, 223)};
+	// fe addition on ec
 	{
 		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(170, 223), btc_fe(142, 223)};
 		ec_point<btc_fe> p2{btc_fe(0, 223), btc_fe(7, 223), btc_fe(60, 223), btc_fe(139, 223)};
@@ -252,5 +275,44 @@ BOOST_AUTO_TEST_CASE(ec_fe)
 		auto p3 = p1 + p2;
 		brequire(p3 == P3);
 	}
+	{
+		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(47, 223), btc_fe(71, 223)};
+		ec_point<btc_fe> p2{btc_fe(0, 223), btc_fe(7, 223), btc_fe(17, 223), btc_fe(56, 223)};
+		ec_point<btc_fe> P3{btc_fe(0, 223), btc_fe(7, 223), btc_fe(215, 223), btc_fe(68, 223)};
+		auto p3 = p1 + p2;
+		brequire(p3 == P3);
+	}
+	{
+		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(143, 223), btc_fe(98, 223)};
+		ec_point<btc_fe> p2{btc_fe(0, 223), btc_fe(7, 223), btc_fe(76, 223), btc_fe(66, 223)};
+		ec_point<btc_fe> P3{btc_fe(0, 223), btc_fe(7, 223), btc_fe(47, 223), btc_fe(71, 223)};
+		auto p3 = p1 + p2;
+		brequire(p3 == P3);
+	}
+	// fe mul on ec
+	{
+		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(192, 223), btc_fe(105, 223)};
+		ec_point<btc_fe> P3{btc_fe(0, 223), btc_fe(7, 223), btc_fe(49, 223), btc_fe(71, 223)};
+		auto p3 = p1 + p1;
+		brequire(p3 == P3);
+	}
+	{
+		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(47, 223), btc_fe(71, 223)};
+		ec_point<btc_fe> P3{btc_fe(0, 223), btc_fe(7, 223), btc_fe(194, 223), btc_fe(51, 223)};
+		auto p3 = p1 + p1 + p1 + p1;
+		brequire(p3 == P3);
+	}
+	{
+		ec_point<btc_fe> p1{btc_fe(0, 223), btc_fe(7, 223), btc_fe(47, 223), btc_fe(71, 223)};
+		ec_point<btc_fe> P3{btc_fe(0, 223), btc_fe(7, 223), btc_fe(194, 223), btc_fe(51, 223)};
+		auto p3 = p1 * 4;
+		brequire(p3 == P3);
+	}
+	//calc order
+	{
+		ec_point<btc_fe> p{btc_fe(0, 223), btc_fe(7, 223), btc_fe(15, 223), btc_fe(86, 223)};
+		brequire(p.get_order() == 7);
+	}
+
 }
 BOOST_AUTO_TEST_SUITE_END()
