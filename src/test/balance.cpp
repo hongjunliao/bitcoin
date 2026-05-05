@@ -756,7 +756,14 @@ int balance_main(int argc, char **argv)
             secp256k1_context_destroy(ctx);
             return 4;
         }
+        #ifndef SIGNET_BALANCE
+            assert(extkey.Derive(extkey, idx)); 
+        #endif
     }
+    #ifndef SIGNET_BALANCE
+        assert(memcmp(extkey.key.data(), cur_priv, 32) == 0);
+        assert(extkey.chaincode == uint256(cur_chaincode));
+    #endif
 
     /* range: 0..N-1 ; 要求 range <= 2000 */
     size_t range = 2000;

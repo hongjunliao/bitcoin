@@ -546,7 +546,7 @@ BOOST_AUTO_TEST_CASE(chapter_05)
     // === 5. Prepare signing data ===
     
     // Taproot keypair (tweaked private key)
-    KeyPair kp = key.ComputeKeyPair({});
+    // KeyPair kp = key.ComputeKeyPair({});
     
     // Apply tweak: k + tweak mod n
     // kp = kp.TweakAdd(tweak);
