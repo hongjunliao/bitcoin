@@ -1,0 +1,101 @@
+base58_tests*
+    base58_EncodeBase58*
+    base58_DecodeBase58*
+descriptor_tests*
+    descriptor_test*
+boss_challenge_balance_tests*
+    boss_challenge_balance_02*
+    boss_challenge_balance_04*
+    boss_challenge_balance_03*
+    boss_challenge_balance*
+taproot_descriptor_balance_complete_tests*
+    test_complete_taproot_descriptor_balance*
+    test_descriptor_parsing*
+    test_extended_key_decoding*
+    test_bip32_derivation*
+    test_taproot_address_generation*
+mastering_taproot*
+    chapter_01*
+    chapter_02*
+    chapter_03*
+    chapter_04*
+    chapter_05*
+    chapter_05_SignatureHash*
+    chapter_05_gemini*
+    chapter_05_coliplot*
+    chapter_05_grok*
+db_tests*
+    db_cursor_prefix_range_test*
+    db_cursor_prefix_byte_test*
+    db_availability_after_write_error*
+    erase_prefix*
+    txn_close_failure_dangling_txn*
+    concurrent_txn_dont_interfere*
+coinselector_tests*
+    bnb_search_test*
+    bnb_sffo_restriction*
+    knapsack_solver_test*
+    ApproximateBestSubset*
+    SelectCoins_test*
+    waste_test*
+    bump_fee_test*
+    effective_value_test*
+    coin_grinder_tests*
+    srd_tests*
+    check_max_selection_weight*
+    SelectCoins_effective_value_test*
+    wallet_coinsresult_test*
+coinselection_tests*
+    bnb_test*
+    bnb_feerate_sensitivity_test*
+feebumper_tests*
+    external_max_weight_test*
+group_outputs_tests*
+    outputs_grouping_tests*
+init_tests*
+    walletinit_verify_walletdir_default*
+    walletinit_verify_walletdir_custom*
+    walletinit_verify_walletdir_does_not_exist*
+    walletinit_verify_walletdir_is_not_directory*
+    walletinit_verify_walletdir_is_not_relative*
+    walletinit_verify_walletdir_no_trailing*
+    walletinit_verify_walletdir_no_trailing2*
+ismine_tests*
+    ismine_standard*
+psbt_wallet_tests*
+    psbt_updater_test*
+    parse_hd_keypath*
+scriptpubkeyman_tests*
+    DescriptorScriptPubKeyManTests*
+spend_tests*
+    SubtractFee*
+    wallet_duplicated_preset_inputs_test*
+wallet_crypto_tests*
+    passphrase*
+    encrypt*
+    decrypt*
+wallet_rpc_tests*
+    ensure_unique_wallet_name*
+wallet_tests*
+    update_non_range_descriptor*
+    scan_for_wallet_transactions*
+    write_wallet_settings_concurrently*
+    ComputeTimeSmart*
+    LoadReceiveRequests*
+    ListCoinsTest*
+    BasicOutputTypesTest*
+    wallet_disableprivkeys*
+    dummy_input_size_test*
+    wallet_descriptor_test*
+    CreateWallet*
+    CreateWalletWithoutChain*
+    RemoveTxs*
+wallet_transaction_tests*
+    roundtrip*
+walletdb_tests*
+    walletdb_readkeyvalue*
+walletload_tests*
+    wallet_load_descriptors*
+ipc_tests*
+    ipc_tests*
+    parse_address_test*

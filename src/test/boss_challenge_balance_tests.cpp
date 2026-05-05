@@ -190,8 +190,78 @@ void ProcessAllKeys(const std::vector<XOnlyPubKey>& internal_keys) {
     std::cout << "Successfully tweaked " << tweaked_keys.size() << " keys.\n";
 }
 
+std::string executeCommandtxoutset(const std::string& command);
+static int openai_balance()
+{
+
+    // descriptor
+    const std::string desc_str =
+        "tr(tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ/86h/1h/0h/0/*)#twn4yrj5";
+
+    FlatSigningProvider provider;
+    std::string error;
+
+    // 解析 descriptor
+    auto descs = Parse(desc_str, provider, error);
+    if (descs.empty()) {
+        std::cerr << "Parse error: " << error << std::endl;
+        return 1;
+    }
+
+    auto& desc = descs[0];
+
+    // range
+    int range = 2000;
+    double total = 0.0;
+
+    for (int i = 0; i < range; ++i) {
+        std::vector<CScript> scripts;
+
+        if (!desc->Expand(i, provider, scripts, provider)) {
+            std::cerr << "Expand failed at index " << i << std::endl;
+            continue;
+        }
+
+        for (const auto& script : scripts) {
+            // 转地址
+            CTxDestination dest;
+            if (!ExtractDestination(script, dest)) continue;
+
+            std::string addr = EncodeDestination(dest);
+
+            // std::cout << "Address[" << i << "]: " << addr << std::endl;
+
+            // 调用 bitcoin-cli
+            std::string cmd =
+                "bitcoin-cli -signet -datadir=/home/jun/bitcoin/signet-wallet-1-balance-hongjunliao/data/0 -signet scantxoutset start "
+                "'[{\"desc\":\"addr(" + addr + ")\"}]'";
+
+			std::string ret_json = executeCommandtxoutset(cmd);
+			UniValue result(UniValue::VOBJ);
+			auto r_json = result.read(ret_json);
+//			std::cout << "RPC return JSON:" << "|" << ret_json << "|" << ( r_json? result.write() : "invalid json") << std::endl;
+			const UniValue& total_amount{result.find_value("total_amount")};
+			BOOST_CHECK(!total_amount.isNull() && total_amount.isNum());
+
+			total += total_amount.get_real();
+
+            if(total_amount.get_real() > 0.0)
+                printf("wallet_001: %.8f\n", total);
+        }
+    }
+    printf("wallet_001: %.8f\n", total);
+
+    return 0;
+
+}
+
 BOOST_FIXTURE_TEST_SUITE(boss_challenge_balance_tests, SignetSetup)
+
 BOOST_AUTO_TEST_CASE(boss_challenge_balance_02)
+{
+    BOOST_CHECK(openai_balance() == 0);
+}
+BOOST_AUTO_TEST_CASE(boss_challenge_balance_04)
 {
 	int i;
     CExtKey extkey = DecodeExtKey("tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ");

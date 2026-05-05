@@ -26,3 +26,11 @@ target/
 /guix-build-*
 
 /ci/scratch/
+out/
+.settings/
+.vscode/
+.cache
+compile_commands.json
+.cproject
+.project
+.gitignore

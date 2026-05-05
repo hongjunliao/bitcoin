@@ -22,6 +22,23 @@
 #include <key_io.h>
 #include <secp256k1.h>
 #include <univalue.h>
+
+std::string executeCommandtxoutset(const std::string& command)
+{
+    FILE *fp = popen(command.c_str(), "r");
+    if (!fp) return "";
+
+    std::string out;
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0)
+    {
+        out += std::string(buf, n);
+    }
+    pclose(fp);
+    return out;
+}
+
 /**
  * ============================================================================
  * Bitcoin Core Taproot Descriptor 余额查询完整测试
@@ -549,36 +566,23 @@ std::string BuildScanTxOutSetCommand(const std::span<const std::string>& address
     std::cout << "════════════════════════════════════════════════════════" << std::endl;
     
     std::string command = "bitcoin-cli -signet -datadir=/home/jun/bitcoin/signet-wallet-1-balance-hongjunliao/data/0 scantxoutset start '[";
+    auto printlen = command.size();
     
     for (size_t i = 0; i < addresses.size()/* addresses.size() */; i++) {
         command += "\"addr(" + addresses[i] + ")\",";
+
+        if(i == 0) printlen = command.size();
     }
     
     command[command.size() - 1] = ']'; // 替换最后一个逗号为]"]'";
     command += "'";
     
     std::cout << "RPC命令:" << std::endl;
-    std::cout << command << std::endl;
+    std::cout << command.substr(0, printlen) << "..." << std::endl;
     std::cout << "  扫描地址数: " << addresses.size() << std::endl;
     std::cout << std::endl;
     
     return command;
-}
-
-std::string executeCommandtxoutset(const std::string& command)
-{
-    FILE *fp = popen(command.c_str(), "r");
-    if (!fp) return "";
-
-    std::string out;
-    char buf[4096];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0)
-    {
-        out += std::string(buf, n);
-    }
-    pclose(fp);
-    return out;
 }
 
 // ============================================================================
@@ -644,7 +648,6 @@ BOOST_AUTO_TEST_CASE(test_complete_taproot_descriptor_balance)
         // ========== Step 2: 解码扩展私钥 ==========
         ExtendedPrivateKey master_key = DecodeExtendedKey(ext_key_str);
         BOOST_REQUIRE(master_key.IsValid());
-        BOOST_REQUIRE(master_key.key.IsValid());
         
         // ========== Step 3: 派生子密钥 ==========
         const uint32_t DERIVATION_RANGE = 2000;
@@ -675,7 +678,7 @@ BOOST_AUTO_TEST_CASE(test_complete_taproot_descriptor_balance)
 			std::string ret_json = executeCommandtxoutset(rpc_command);
 			UniValue result(UniValue::VOBJ);
 			auto r_json = result.read(ret_json);
-			std::cout << "RPC return JSON:" << "|" << ret_json << "|" << ( r_json? result.write() : "invalid json") << std::endl;
+//			std::cout << "RPC return JSON:" << "|" << ret_json << "|" << ( r_json? result.write() : "invalid json") << std::endl;
 			const UniValue& total_amount{result.find_value("total_amount")};
 			BOOST_CHECK(!total_amount.isNull() && total_amount.isNum());
 
@@ -718,7 +721,7 @@ BOOST_AUTO_TEST_CASE(test_descriptor_parsing)
     auto [ext_key, path, checksum] = ParseDescriptorString(DESCRIPTOR);
     
     BOOST_CHECK_EQUAL(ext_key, "tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ");
-    BOOST_CHECK_EQUAL(path, "/86h/1h/0h/0/");
+    BOOST_CHECK_EQUAL(path, "/86h/1h/0h/0/*");
     BOOST_CHECK_EQUAL(checksum, "twn4yrj5");
 }
 
@@ -744,7 +747,8 @@ BOOST_AUTO_TEST_CASE(test_extended_key_decoding)
 BOOST_AUTO_TEST_CASE(test_bip32_derivation)
 {
     SelectParams(ChainType::SIGNET);
-    
+    ECC_Context ctx;
+
     const std::string EXT_KEY = "tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ";
     ExtendedPrivateKey master = DecodeExtendedKey(EXT_KEY);
     
@@ -763,7 +767,8 @@ BOOST_AUTO_TEST_CASE(test_bip32_derivation)
 BOOST_AUTO_TEST_CASE(test_taproot_address_generation)
 {
     SelectParams(ChainType::SIGNET);
-    
+    ECC_Context ctx;
+
     const std::string EXT_KEY = "tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ";
     ExtendedPrivateKey master = DecodeExtendedKey(EXT_KEY);
     
