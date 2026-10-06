@@ -50,7 +50,7 @@
 #include "secp256k1.h"
 #include "secp256k1_extrakeys.h"
 
-#include "balance.cpp" 
+#include "balance.cpp"
 /////////////////////////////////////////////////////////////////////////////////////
 
 using namespace std::literals;
