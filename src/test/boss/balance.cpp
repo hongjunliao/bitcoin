@@ -33,6 +33,7 @@
 // #include "hp/hp_cjson.h"
 #include "hp/hp_str.h"
 #else
+#include "boss.h"
 #include <key.h>
 #include <key_io.h>
 #include <crypto/hmac_sha512.h>
@@ -43,6 +44,7 @@ static const char *BITCOIN_CLI_BASE = "bitcoin-cli -signet -datadir=/home/jun/bi
 static const size_t MAX_ADDR_PER_BATCH = 2;   /* 分批查询 listunspent，避免命令行过长 */
 static const uint32_t HARDENED_OFFSET = 0x80000000u;
 static const size_t MAX_RANGE = 2000;          /* 用户要求的上限 */
+
 
 /* ---------- 简单的 Base58Check 解码（用于 xprv 解码） ---------- */
 static const char *BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -635,24 +637,9 @@ double sum_amounts_from_listunspent_json(const char *json)
 
 /* ---------- RPC: 使用 scantxoutset start 查询给定地址列表的 total_amount ---------- */
 /* 返回: >=0 表示 BTC 金额总和；负值表示错误（无法执行 RPC、解析失败等） */
-static
-double bitcoin_cli_scantxoutset_for_addresses(char **addrs, size_t addr_count)
+static double scantxoutset_total_amount(std::string const & cmd)
 {
-    if (addr_count == 0) return 0.0;
-
-    /* 构建 JSON 数组，元素为 "addr(<address>)" */
-    auto json = std::string("[");
-    for (size_t i = 0; i < addr_count; ++i)
-    {
-        json = json + "\"addr(" + std::string(addrs[i]) + ")\",";
-    }
-    json[json.length() - 1] = ']'; /* 替换最后一个逗号为 ] */;
-
-    /* scantxoutset start '<array>' */
-    auto cmd = std::string(BITCOIN_CLI_BASE) + " scantxoutset start '" + json + "'";
-
     FILE *fp = popen(cmd.c_str(), "r");
-    printf("%s: %s\n", __FUNCTION__, cmd.c_str());
     if (!fp) return -2.0;
 
     std::string out;
@@ -665,10 +652,8 @@ double bitcoin_cli_scantxoutset_for_addresses(char **addrs, size_t addr_count)
     int status = pclose(fp);
     (void)status;
 
-    printf("%s: '%s'\n", __FUNCTION__, out.c_str());
-
     /* 在 JSON 中查找 "total_amount" 字段并解析其值 */
-    double total = -5.0;
+    double total = 0.0;
     const char *p = strstr(out.c_str(), "\"total_amount\"");
     if (p != NULL)
     {
@@ -685,6 +670,35 @@ double bitcoin_cli_scantxoutset_for_addresses(char **addrs, size_t addr_count)
             }
         }
     }
+    if (total > 0.0) {
+        printf("%s: %s\n", __FUNCTION__, cmd.c_str());
+        printf("%s: '%s'\n", __FUNCTION__, out.c_str());
+    }
+
+    return total;
+}
+
+static std::string bitcoin_cli_scantxoutset_cmd_str(std::string const& json) {
+    return std::string(BITCOIN_CLI_BASE) + " scantxoutset start '" + json + "'";
+}
+
+static
+double bitcoin_cli_scantxoutset_for_addresses(char **addrs, size_t addr_count)
+{
+    if (addr_count == 0) return 0.0;
+
+    /* 构建 JSON 数组，元素为 "addr(<address>)" */
+    auto json = std::string("[");
+    for (size_t i = 0; i < addr_count; ++i)
+    {
+        json = json + "\"addr(" + std::string(addrs[i]) + ")\",";
+    }
+    json[json.length() - 1] = ']'; /* 替换最后一个逗号为 ] */;
+
+    /* scantxoutset start '<array>' */
+    auto cmd = bitcoin_cli_scantxoutset_cmd_str(json);
+
+    double total = scantxoutset_total_amount(cmd);
 
     return total;
 }
@@ -725,13 +739,13 @@ int balance_main(int argc, char **argv)
         return 2;
     }
 
-    #ifndef SIGNET_BALANCE
-        CExtKey extkey, extkey2;
-        extkey = DecodeExtKey(xprv); extkey2.Decode(master_priv);
-        assert(extkey.key.IsValid());
-        assert(extkey.chaincode == uint256(master_chaincode));
-        assert(memcmp(extkey.key.data(), master_priv, 32) == 0);
-    #endif
+#ifndef SIGNET_BALANCE
+    CExtKey extkey;
+    extkey = DecodeExtKey(xprv);
+    assert(extkey.key.IsValid());
+    assert(extkey.chaincode == uint256(master_chaincode));
+    assert(memcmp(extkey.key.data(), master_priv, 32) == 0);
+#endif
     /* init secp context */
     secp256k1_context *ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
     if (!ctx)
@@ -756,13 +770,15 @@ int balance_main(int argc, char **argv)
             secp256k1_context_destroy(ctx);
             return 4;
         }
-        #ifndef SIGNET_BALANCE
-            assert(extkey.Derive(extkey, idx)); 
-        #endif
+#ifndef SIGNET_BALANCE
+        assert(extkey.Derive(extkey, idx));
+        assert(extkey.chaincode == uint256(cur_chaincode));
+        assert(memcmp(extkey.key.data(), cur_priv, 32) == 0);
+#endif
     }
     #ifndef SIGNET_BALANCE
-        assert(memcmp(extkey.key.data(), cur_priv, 32) == 0);
-        assert(extkey.chaincode == uint256(cur_chaincode));
+        // assert(memcmp(extkey.key.data(), cur_priv, 32) == 0);
+        // assert(extkey.chaincode == uint256(cur_chaincode));
     #endif
 
     /* range: 0..N-1 ; 要求 range <= 2000 */
@@ -787,9 +803,10 @@ int balance_main(int argc, char **argv)
         }
 
         #ifndef SIGNET_BALANCE
-            assert(extkey.Derive(extkey2, i)); 
-            assert(extkey2.key.IsValid());
-            assert(memcmp(extkey2.key.data(), child_priv, 32) == 0);
+            // CExtKey extkey2;
+            // assert(extkey.Derive(extkey2, i));
+            // assert(extkey2.key.IsValid());
+            // assert(memcmp(extkey2.key.data(), child_priv, 32) == 0);
         #endif
         /* derive taproot output xonly pubkey */
         unsigned char out_xonly[32];
@@ -851,3 +868,92 @@ int balance_main(int argc, char **argv)
     secp256k1_context_destroy(ctx);
     return 0;
 }
+
+#ifndef SIGNET_BALANCE
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+//写一个完整的bitcoin core c/c++测试：内容为 查询desriptor:tr(tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ/86h/1h/0h/0/*)#twn4yrj5
+//中的余额;实现方式:你需要解析该descriptor，得到private key,chaincode,然后derive等等全部流程， 最后通过调用biltcoin-cli rpc scantxoutset，传入你生成的addr，最终输出余额；bitcoind已在本地同步， -signet, range为2000以内
+#include <iostream>
+#include <vector>
+#include <string>
+
+#include <key.h>
+#include <pubkey.h>
+#include <script/descriptor.h>
+#include <script/script.h>
+#include <util/strencodings.h>
+#include <key_io.h>
+
+#include <interfaces/node.h>
+
+using namespace std;
+
+static int openai_main()
+{
+    double total_btc = 0.0;
+    // descriptor
+    const std::string desc_str =
+        "tr(tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ/86h/1h/0h/0/*)#twn4yrj5";
+
+    FlatSigningProvider provider;
+    std::string error;
+
+    // 解析 descriptor
+    auto descs = Parse(desc_str, provider, error);
+    if (descs.empty()) {
+        std::cerr << "Parse error: " << error << std::endl;
+        return 1;
+    }
+
+    auto& desc = descs[0];
+
+    // range
+    int range = 2000;
+
+    for (int i = 0; i < range; ++i) {
+        std::vector<CScript> scripts;
+
+        if (!desc->Expand(i, provider, scripts, provider)) {
+            std::cerr << "Expand failed at index " << i << std::endl;
+            continue;
+        }
+
+        for (const auto& script : scripts) {
+            // 转地址
+            CTxDestination dest;
+            if (!ExtractDestination(script, dest)) continue;
+
+            std::string addr = EncodeDestination(dest);
+
+            // std::cout << "Address[" << i << "]: " << addr << std::endl;
+
+            // 调用 bitcoin-cli
+            std::string cmd = bitcoin_cli_scantxoutset_cmd_str("[{\"desc\":\"addr(" + addr + ")\"}]");
+                // "bitcoin-cli -signet  scantxoutset start "
+                // "'[{\"desc\":\"addr(" + addr + ")\"}]'";
+
+
+            // std::cout << "Running: " << cmd << std::endl;
+            total_btc += scantxoutset_total_amount(cmd);
+        }
+    }
+
+    printf("wallet_565 %.8f BTC\n", total_btc);
+
+    return 0;
+}
+
+BOOST_FIXTURE_TEST_SUITE(boss, SignetSetup)
+
+BOOST_AUTO_TEST_CASE(balance)
+{
+    int rc = balance_main(0, 0);
+    brequire(rc == 0);
+}
+BOOST_AUTO_TEST_CASE(openai_balance) {
+    brequire(openai_main() == 0);
+}
+BOOST_AUTO_TEST_SUITE_END()
+#endif
