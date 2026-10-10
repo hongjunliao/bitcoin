@@ -1,5 +1,5 @@
 /*!
- * mastering taproot 
+ * https://github.com/aaron-recompile/mastering-taproot
  */
  #include <boost/test/unit_test.hpp>
 #include <test/util/setup_common.h> //TestingSetup
@@ -13,74 +13,82 @@
 #include <serialize.h>               //GetSerializeSize
 #include <node/protocol_version.h>             //PROTOCOL_VERSION    
 #include <script/sign.h>            //ProduceSignature
-
+#include <coins.h>  //CCoinsViewCache
+#include "boss.h"
 #include <secp256k1.h>
 #include <secp256k1_extrakeys.h>
 #include <secp256k1_schnorrsig.h>
 
-#define bcheck BOOST_CHECK 
-#define brequire BOOST_REQUIRE
-#define bequal BOOST_CHECK_EQUAL
-
-
-struct TestnetSetup : public TestingSetup {
-	TestnetSetup()
-        : TestingSetup{ChainType::TESTNET} {}
-};
-
- BOOST_FIXTURE_TEST_SUITE(mastering_taproot, TestnetSetup)
+ BOOST_FIXTURE_TEST_SUITE(mastering_taproot, TestingSetup)
 
  BOOST_AUTO_TEST_CASE(chapter_01)
 {
     std::cout << "=== Chapter 1: Key Generation and Address Creation ===" << std::endl;
     // private key
     CKey k;
-    bcheck(!k.IsValid());
+    brequire(!k.IsValid());
     auto hex = ParseHex("e9873d79c6d87dc0fb6a5778633389dfa5c32fa27f99b5199abf2f9848ee0289");
     k.Set(hex.begin(), hex.end(), true);
-    // k.MakeNewKey(true);
-    bcheck(k.IsValid());
+    brequire(k.IsValid());
 
-    printf("Private Key (HEX): %s\n", HexStr(std::span{k.begin(), k.end()}).c_str());
-    bcheck(HexStr(std::span{k.begin(), k.end()}) == "e9873d79c6d87dc0fb6a5778633389dfa5c32fa27f99b5199abf2f9848ee0289");
+    printf("Private Key :                      %s\n", HexStr(std::span{k.begin(), k.end()}).c_str());
+    brequire(HexStr(std::span{k.begin(), k.end()}) == "e9873d79c6d87dc0fb6a5778633389dfa5c32fa27f99b5199abf2f9848ee0289");
+    printf("Private Key (WIF):                 %s, prefix=%s\n", EncodeSecret(k).c_str(),
+        HexStr(Params().Base58Prefix(CChainParams::SECRET_KEY)).c_str());
 
-    printf("Private Key (WIF): %s\n", EncodeSecret(k).c_str());
-    // bcheck(EncodeSecret(k) == "L1aW4aubDFB7yfras2S1mN3bqg9w3KmCPSM3Qh4rQG9E1e84n5Bd");
-
-    //WIF format of private key
-    auto dk = DecodeSecret("L1aW4aubDFB7yfras2S1mN3bqg9w3KmCPSM3Qh4rQG9E1e84n5Bd"); 
-    // bcheck(dk.IsValid());
-    // bcheck(k == dk);
+    brequire(EncodeSecret(k) == "L53fCHmQhbNp1B4JipfBtfYgv8G9vsxeUE8cCJKyNAgbieXbUz2i");
+    auto dk = DecodeSecret("L53fCHmQhbNp1B4JipfBtfYgv8G9vsxeUE8cCJKyNAgbieXbUz2i");
+    brequire(dk.IsValid());
+    brequire(k == dk);
 
     //public key
     auto pk = k.GetPubKey(), cpk = pk;
-    printf("Public Key (HEX): %s\n", HexStr(std::span{pk.begin(), pk.end()}).c_str());
+    printf("Public Key :                       %s\n", HexStr(std::span{pk.begin(), pk.end()}).c_str());
+    brequire(HexStr(std::span{pk.begin(), pk.end()}) ==
+        "02f883752ff979dffe25fe7f2412988965ee8b3a5f0ca837ef4b60202b3d88baa8"
+                                                                );
     pk.Decompress();
-    printf("Decompressed Public Key (HEX): %s\n", HexStr(std::span{pk.begin(), pk.end()}).c_str());
+    printf("Decompressed Public Key :          %s\n", HexStr(std::span{pk.begin(), pk.end()}).c_str());
+    brequire(HexStr(std::span{pk.begin(), pk.end()}) ==
+        "04f883752ff979dffe25fe7f2412988965ee8b3a5f0ca837ef4b60202b3d88baa8a0e75b2059ed5c8a6d3692bf870902d56e359af8f543a"
+        "9da71d1e0e2e03469a4");
 
     //x-only public key
     XOnlyPubKey xpk{pk};
-    printf("Xonly Public Key (HEX): %s\n", HexStr(std::span{xpk.begin(), xpk.end()}).c_str());
+    printf("Xonly Public Key :                 %s\n", HexStr(std::span{xpk.begin(), xpk.end()}).c_str());
+     brequire(HexStr(std::span{xpk.begin(), xpk.end()}) ==
+         "f883752ff979dffe25fe7f2412988965ee8b3a5f0ca837ef4b60202b3d88baa8");
 
     // key to address
-        //p2pk
+     //p2pk
     PubKeyDestination p2pk{cpk};
     auto addr_p2pk = EncodeDestination(p2pk);
-    printf("P2PK Address: %s\n", addr_p2pk.c_str());
-     CScript scriptPubKey = CScript() << cpk << OP_CHECKSIG;
-     printf("P2PK ScriptPubKey: %s\n", HexStr(scriptPubKey).c_str());
+    printf("P2PK Address:                      %s\n", addr_p2pk.c_str());
+    //  brequire(addr_p2pk == "04f883752ff979dffe25fe7f2412988965ee8b3a5f0ca837ef4b60"
+    // "202b3d88baa8a0e75b2059ed5c8a6d3692bf870902d56e359af8f543a9da71d1e0e2e03469a4");
+
+     // CScript scriptPubKey = CScript() << cpk << OP_CHECKSIG;
+     // printf("P2PK ScriptPubKey: %s\n", HexStr(scriptPubKey).c_str());
+
         //p2pkh
      auto addr_p2pkh = EncodeDestination(PKHash(cpk));
-     printf("P2PKH Address: %s\n", addr_p2pkh.c_str());
+     printf("Legacy (P2PKH):                   %s\n", addr_p2pkh.c_str());
+     brequire(addr_p2pkh == "1FEokwQhTGXz2t2nX5u8pXAh8opWQYrq6g");
+
         //p2wpkh
      auto addr_p2wpkh = EncodeDestination(WitnessV0KeyHash(cpk));
-     printf("P2WPKH Address (SegWit Native): %s\n", addr_p2wpkh.c_str());
+     printf("P2WPKH Address (SegWit Native):   %s\n", addr_p2wpkh.c_str());
+     brequire(addr_p2wpkh == "bc1qnshrxgy59dsa8wzjq9fevur6a22p25tn407vwj");
+
         //Nested SegWit（P2SH-P2WPKH）地址生成
     auto addr_p2sh_p2wpkh = EncodeDestination(ScriptHash(GetScriptForDestination(WitnessV0KeyHash(cpk))));
     printf("P2SH-P2WPKH Address (SegWit P2SH): %s\n", addr_p2sh_p2wpkh.c_str());
+     // brequire(addr_p2sh_p2wpkh == "2N7V2kDqAcdMiKqMmKKBbs6WtVgKPnDg2Hi");
+
         //p2tr
      auto addr_p2tr = EncodeDestination(WitnessV1Taproot(xpk));
-     printf("P2TR Address: %s\n", addr_p2tr.c_str());
+     printf("P2TR Address:                     %s\n", addr_p2tr.c_str());
+     brequire(addr_p2tr == "bc1plzph2tle080luf070ujp9xyfvhhgkwjlpj5r0m6tvqszk0vgh25qm6ga3e");
 
      std::cout << "end of chapter 1________________________________________________" << std::endl;
 }
@@ -293,7 +301,7 @@ BOOST_AUTO_TEST_CASE(chapter_03)
 
         bool ok = ProduceSignature(
             keystore,
-            MutableTransactionSignatureCreator(tx, 0, input_amount, SIGHASH_ALL),
+            MutableTransactionSignatureCreator(tx, 0, input_amount, SignOptions{SIGHASH_ALL}),
             scriptPubKey,
             sigdata
         );
@@ -568,7 +576,7 @@ BOOST_AUTO_TEST_CASE(chapter_05)
 
     FlatSigningProvider provider;
     provider.keys[key.GetPubKey().GetID()] = key;
-    MutableTransactionSignatureCreator creator(mtx, 0, amount, &txdata, SIGHASH_SINGLE);
+    MutableTransactionSignatureCreator creator(mtx, 0, amount, &txdata, SignOptions{SIGHASH_SINGLE});
     std::vector<unsigned char> signature;
     uint256 merkle_root;
     BOOST_CHECK(creator.CreateSchnorrSig(provider, signature, internal_pubkey, nullptr, &merkle_root, SigVersion::TAPROOT));
@@ -942,7 +950,7 @@ BOOST_AUTO_TEST_CASE(chapter_05_grok)
     // // For SIGHASH_DEFAULT, the witness is just the 64-byte signature.
     // spend_tx.vin[0].scriptWitness = witness;
 
-    // // Step 5: Print the transaction (hex)
+    // // Step 5: Print the transaction 
     // const std::string tx_hex = EncodeHexTx(CTransaction(spend_tx));
     // std::cout << "Constructed and 'signed' Simple Taproot Key-Spend Transaction:" << std::endl;
     // std::cout << tx_hex << std::endl;

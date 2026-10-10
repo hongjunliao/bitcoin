@@ -1,13 +1,9 @@
 /*!
- * private data
- * tr(tprv8ZgxMBicQKsPeUtaZbdhCrgvRSB6G6XKwAzsH1AiiGNZnvMvVFmtkK3Fd3YFVmYeXAA3F5jLMR6xynRhFdM8vH8u8GESS4d7nrwTXPQp9ZJ/86h/1h/0h/0/*)#twn4yrj5
- * 001 invoice:
- * wallet_565,lntbs11970n1p5k202qpp53n3ecycdktgjlyz0prj7gunxcvq0ha0rz40j54kr7acmw832jlusdqswaskcmr9w30n2d34cqzzsxq9yn4qqsp56487dpcg226vj8ux5c7u4c3nyuywdrs5enxgglt5n6eqfej957fq9qxpqysgq6292r3j4zwsldx2z7fz9y5zgg4rk5czfvejv9je9v5x0783gntu8e57lsph7czwtjg3czg0g5j3m0rc34p99jzwe33djysdum6xvugsqtq6u96,8ce39c130db2d12f904f08e5e47266c300fbf5e3155f2a56c3f771b71e2a97f9
- *
- * 003 invoice:
- * wallet_565,lntbs90940n1p5k205rpp58wc7epu92h3fca0quclwdrhqks3q5k4ej306tl04m0prc0xj6s5qdqswaskcmr9w30n2d34cqzzsxq9yn4qqsp52uyx8xrtr9t9e76cvmwullus0t7u83prfjn45hm3jfvplpcv770s9qxpqysgqhaegmug6h6220egrdm4msa4f2r2e7rnu7z2d5ldqja9tdsy4vl9h384lpvuswm9kn9vkh5jd49m8vs2vqrp7x9mwqnm0q409c4k3zrcp8azr6g,3bb1ec878555e29c75e0e63ee68ee0b4220a5ab9945fa5fdf5dbc23c3cd2d428
- *
+ *https://github.com/boss-2026-challenge/signet-wallet-1-balance-hongjunliao/
  */
+// boost test: -t boss/balance
+//示例输出
+//wallet_565 1.00425386
 
 #include "bitcoin-build-config.h"
 #include <stdio.h>
@@ -890,7 +886,7 @@ int balance_main(int argc, char **argv)
 
 using namespace std;
 
-static int openai_main()
+static int openai_balance_main()
 {
     double total_btc = 0.0;
     // descriptor
@@ -952,8 +948,8 @@ BOOST_AUTO_TEST_CASE(balance)
     int rc = balance_main(0, 0);
     brequire(rc == 0);
 }
-BOOST_AUTO_TEST_CASE(openai_balance) {
-    brequire(openai_main() == 0);
+BOOST_AUTO_TEST_CASE(balance_openai) {
+    brequire(openai_balance_main() == 0);
 }
 BOOST_AUTO_TEST_SUITE_END()
 #endif
