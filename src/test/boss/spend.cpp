@@ -132,7 +132,7 @@ const std::string  DESCRIPTOR =
 BOOST_FIXTURE_TEST_SUITE(boss, SignetSetup)
 
 
-// -t boss/spend_p2pkh -- datadir=/home/jun/bitcoin/bitcoin/signet to=mzwxAKy51qBsV61f4C3Rn9SCUBqxDVzUTp amount=200000 fee_rate=1
+// -t boss/spend_p2pkh -- datadir=/home/jun/bitcoin/datadir/boss to=mzwxAKy51qBsV61f4C3Rn9SCUBqxDVzUTp amount=200000 fee_rate=1
 BOOST_AUTO_TEST_CASE(spend_p2pkh) {
     bool ret{false};
     std::string datadir;
@@ -392,7 +392,7 @@ BOOST_AUTO_TEST_CASE(spend_p2pkh) {
                 << "\n"
                 << "Broadcast after starting bitcoind:\n"
                 << "\n"
-                << "bitcoin-cli -signet sendrawtransaction \\\n"
+                << "bitcoin-cli -signet -datadir=" << datadir << " sendrawtransaction "
                 << tx_hex << "\n"
                 << std::endl;
     }

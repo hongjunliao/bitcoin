@@ -357,3 +357,85 @@ bitcoin-cli -signet -datadir=/home/jun/bitcoin/signet -rpcwallet="p2pkh_wallet" 
   }
 ]
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+**使用 Bitcoin Core 的 `TaprootBuilder` 构建 Alice 的双路径 Taproot 地址。**
+
+需求对应：
+- **条件路径（脚本路径）**：任何人知道 preimage `"helloworld"` 就能花费（典型 hashlock：`OP_SHA256 <hash> OP_EQUAL`）。
+- **所有者路径（key path）**：Alice 用自己的私钥随时花费（把 Alice 的 x-only 公钥作为 internal key，无需脚本叶子）。
+
+### 关键思路
+- **Key path**：Alice 的私钥对应的 x-only 公钥作为 `internal_key`，直接 key-path spend（最隐私、最便宜）。
+- **Script path**：单叶子脚本 `OP_SHA256 <sha256("helloworld")> OP_EQUAL`（任何人提供正确 preimage 即可，无需签名）。
+- 树深度为 0（只有一个叶子）。
+
+### 示例 C++ 代码（基于 Bitcoin Core 风格）
+
+```cpp
+#include <script/standard.h>
+#include <pubkey.h>
+#include <hash.h>
+#include <util/strencodings.h>
+#include <key.h>          // 生成密钥时需要
+#include <span.h>
+
+// 1. Alice 的密钥对（实际使用时从安全来源加载私钥）
+CKey alice_key;
+alice_key.MakeNewKey(true);                 // 或从 WIF / 种子派生
+XOnlyPubKey alice_xonly(alice_key.GetPubKey());
+
+// 2. 计算 preimage 的 SHA256
+std::string preimage_str = "helloworld";
+uint256 preimage_hash = Hash(preimage_str);   // 或 SHA256(preimage_str)
+
+// 3. 条件脚本：任何人知道 "helloworld" 就能花费
+CScript condition_script;
+condition_script << OP_SHA256 << ToByteVector(preimage_hash) << OP_EQUAL;
+
+// 4. 使用 TaprootBuilder
+TaprootBuilder builder;
+builder.Add(/*depth=*/0, condition_script, /*leaf_version=*/0xc0);  // 标准 tapscript
+
+BOOST_CHECK(builder.IsValid());
+BOOST_CHECK(builder.IsComplete());
+
+// 5. Finalize（Alice 的 x-only 公钥作为 internal key → 所有者路径）
+builder.Finalize(alice_xonly);
+
+// 6. 得到输出
+WitnessV1Taproot output = builder.GetOutput();
+CTxDestination dest = output;
+std::string address = EncodeDestination(dest);   // bc1p... 地址
+
+// 7. 获取花费数据（方便后续构造 witness）
+TaprootSpendData spend_data = builder.GetSpendData();
+```
+
+### 花费方式
+
+1. **所有者路径（Alice）**：
+  - 普通 key-path spend：用 Alice 的私钥对 tweaked key 做 Schnorr 签名即可。
+  - 不需要揭示任何脚本。
+
+2. **条件路径（知道 "helloworld" 的人）**：
+  - 脚本路径 spend。
+  - Witness 栈大致为：
+    ```
+    <"helloworld">          // preimage
+    <condition_script>      // 叶子脚本
+    <control_block>         // 由 spend_data 生成
+    ```
+  - `control_block` 包含 leaf version + internal key + merkle path（这里深度 0，path 为空）。
+
+### 注意事项
+- Leaf version 使用 `0xc0`（BIP342 tapscript）。
+- 如果希望条件路径也需要 Alice 签名，可改成：
+  ```cpp
+  condition_script << OP_SHA256 << ToByteVector(preimage_hash) << OP_EQUALVERIFY
+                   << ToByteVector(alice_xonly) << OP_CHECKSIG;
+  ```
+- 测试时可参考 `src/test/script_standard_tests.cpp` 中的 `script_standard_taproot_builder` 用例，以及 `TaprootBuilder::Add / Finalize / GetOutput / GetSpendData`。
+- 实际生产中请用安全的密钥管理，不要硬编码私钥。
+
+这样生成的地址同时支持两种花费方式，完全符合你的描述。
