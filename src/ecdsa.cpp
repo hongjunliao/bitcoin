@@ -7,6 +7,7 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 #include "btc_inc.h"
+#include <secp256k1.h>
 #define ec_none(a, b) ec_point{(a), (b), 0, 0}
 
 template <typename T>
@@ -152,10 +153,22 @@ public:
 	}
 	ec_point operator *(int n) const
 	{
-		ec_point ret(*this);
-		for(;n > 1;--n)
-			ret = ret + *this;
-		return ret;
+		// normal way
+//		ec_point ret(*this);
+//		for(;n > 1;--n)
+//			ret = ret + *this;
+//		return ret;
+		//a log2N way
+		auto coef = n;
+		auto current = *this;
+		ec_point result = ec_none(this->_a, this->_b);
+		while (coef > 0) {
+			if (coef & 1)
+				result += current;
+			current += current;
+			coef >>= 1;
+		}
+		return result;
 	}
 	int get_order() const
 	{
@@ -315,4 +328,41 @@ BOOST_AUTO_TEST_CASE(ec_fe)
 	}
 
 }
+// G point is on the secp256k1 curve
+BOOST_AUTO_TEST_CASE(ec_secp256k1) {
+	// 1. Create a context (required for most operations)
+	secp256k1_context *ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+
+	// 2. The serialized compressed G point for secp256k1
+	// Format: 02 (y is even) + X-coordinate
+	unsigned char g_compressed[] = {
+		0x02,
+		0x79, 0xBE, 0x66, 0x7E, 0xF9, 0xDC, 0xBB, 0xAC,
+		0x55, 0xA0, 0x62, 0x95, 0xCE, 0x87, 0x0B, 0x07,
+		0x02, 0x9B, 0xFC, 0xDB, 0x2D, 0xCE, 0x28, 0xD9,
+		0x59, 0xF2, 0x81, 0x5B, 0x16, 0xF8, 0x17, 0x98
+	};
+
+	secp256k1_pubkey pubkey;
+
+	// 3. Attempt to parse the point.
+	// This function returns 1 if valid (on curve), 0 if invalid.
+	int is_on_curve = secp256k1_ec_pubkey_parse(
+		ctx,
+		&pubkey,
+		g_compressed,
+		sizeof(g_compressed)
+	);
+
+	if (is_on_curve) {
+		printf("Success: The point is valid and on the secp256k1 curve.\n");
+	} else {
+		printf("Failure: The point is NOT on the curve.\n");
+	}
+
+	// 4. Cleanup
+	secp256k1_context_destroy(ctx);
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()
