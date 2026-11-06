@@ -61,13 +61,6 @@ foreach(dep IN LISTS g_deps  )
 	target_link_libraries(btcc ${${dep}_LIBRARIES} ) 
 endforeach() 
 
-target_compile_options(btcc PUBLIC
-	-DHAVE_CONFIG_H
-    -DCMAKE_EXPORT_COMPILE_COMMANDS
-    # for redis
-    -DBOOST_TEST_DYN_LINK
-)
-
 ###########################################################################################
 configure_file("config.h.in" "config.h")
 

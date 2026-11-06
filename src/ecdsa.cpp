@@ -7,7 +7,7 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 #include "btc_inc.h"
-#include <secp256k1.h>
+#include "secp256k1.h"
 #define ec_none(a, b) ec_point{(a), (b), 0, 0}
 
 template <typename T>

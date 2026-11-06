@@ -101,7 +101,7 @@ static hp_io_t *  btc_node_in_on_new(hp_io_t * cio, hp_sock_t fd)
 	if(hp_log_level > 0){
 		char buf[64] = "";
 		hp_log(stdout, "%s: New BTC connection from '%s', total=%d\n", __FUNCTION__
-				, hp_addr4name(&cio->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
+				, hp_addr4name((struct sockaddr_in *)&cio->addr, ":", buf, sizeof(buf)), btc_in_count(bctx));
 	}
 
 //	int64 nTime = (true/*fInbound*/ ? GetAdjustedTime() : GetTime());
@@ -138,7 +138,7 @@ static void btc_node_in_on_delete(hp_io_t * io, int err, char const * errstr)
 	if(hp_log_level > 0){
 		char buf[64] = "";
 		hp_log(stdout, "%s: Delete BTC connection '%s', %d/'%s', total=%d\n", __FUNCTION__
-				, hp_addr4name(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
+				, hp_addr4name((struct sockaddr_in *)&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
 	}
 
 	listDelNode(bctx->inlist, node);
@@ -218,7 +218,7 @@ static void btc_node_out_on_delete(hp_io_t * io, int err, char const * errstr)
 	if(hp_log_level > 0){
 		char buf[64] = "";
 		hp_log(stdout, "%s: Disconnected from '%s', %d/'%s', total=%d\n", __FUNCTION__
-				, hp_addr4name(&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
+				, hp_addr4name((struct sockaddr_in *)&io->addr, ":", buf, sizeof(buf)), err, errstr, btc_in_count(bctx));
 	}
 	listDelNode(bctx->outlist, node);
 	btc_node_uninit(outnode);
