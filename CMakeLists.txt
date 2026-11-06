@@ -54,6 +54,11 @@ hp_cmake_find_deps(SRCS BITCOIN_WITH_ deps cmakes g_withs g_hdrs g_incs g_deps g
 add_executable(btcc ${SRCS})
 
 ###########################################################################################
+# for libbitcoinkernel
+target_include_directories(btcc PRIVATE ${CMAKE_SOURCE_DIR}/deps/bitcoinkernel )
+target_link_directories(btcc PRIVATE ${CMAKE_SOURCE_DIR}/deps/lib)
+target_link_libraries(btcc bitcoinkernel)
+
 
 foreach(dep IN LISTS g_deps  )
 	message("btcc: dep='${dep}', ${dep}_INCLUDE_DIRS='${${dep}_INCLUDE_DIRS}', ${dep}_LIBRARIES='${${dep}_LIBRARIES}'")

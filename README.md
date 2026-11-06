@@ -17,4 +17,4 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 #debug构建
 ```
 
 #### run
-./build/btcc
+./cmake-build-debug/btcc --run_test=block/genesis --  -datadir=/home/jun/bitcoin/datadir/boss

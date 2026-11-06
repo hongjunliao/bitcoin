@@ -47,7 +47,6 @@ static hp_ini iniobj = {.parser = btc_inih_handler };
 //global default configure
 hp_ini * g_ini = &iniobj;
 /////////////////////////////////////////////////////////////////////////////////////////////
-extern hp_ini * g_ini;
 #define cfg(k) hp_ini_exec(g_ini, (k))
 #define cfgi(k) atoi(cfg(k))
 #define cfgv(...) hp_ini_execv(g_ini, __VA_ARGS__)
@@ -297,7 +296,44 @@ static int btc_connect(btc_node_ctx *bctx)
 	return 0;
 }
 /////////////////////////////////////////////////////////////////////////////////////////
+int btc_parse_args(int argc, char ** argv)
+{
+	for (int i = 0; i < boost::unit_test::framework::master_test_suite().argc; ++i) {
+		auto argi = boost::unit_test::framework::master_test_suite().argv[i];
 
+		std::cout << i << " -> " << argi << std::endl;
+
+		if (strncmp(argi + 1, "datadir=", 8) == 0) {
+			sds cmd = sdscatprintf(sdsempty(), "#set datadir %s", argi + 9);
+			cfg(cmd);
+			sdsfree(cmd);
+			std::cout << "datadir='" << cfg("datadir") << "'" << std::endl;
+			continue;;
+		}
+		// else if (strncmp(argi, "to=", 3) == 0) {
+		// 	to_addr = argi + 3;
+		// 	std::cout << "to=" << to_addr << std::endl;
+		// 	continue;;
+		// }
+		// else if (strncmp(argi, "range=", 6) == 0) {
+		// 	range = atoi((argi + 6));
+		// 	std::cout << "range=" << range << std::endl;
+		// 	continue;;
+		// }
+		// else if (strncmp(argi, "fee_rate=", 9) == 0) {
+		// 	fee_rate = strtol((argi + 9), nullptr, 10);
+		// 	std::cout << "fee_rate=" << fee_rate << std::endl;
+		// 	continue;;
+		// }
+		// else if (strncmp(argi, "amount=", 7) == 0) {
+		// 	amount = strtol(argi + 7, nullptr, 10);
+		// 	std::cout << "amount=" << amount << std::endl;
+		// 	continue;;
+		// }
+	}
+
+	return 0;
+}
 
 int btc_main(int argc, char ** argv)
 {
@@ -322,6 +358,8 @@ int btc_main(int argc, char ** argv)
    /////////////////////////////////////////////////////////////////////////////////////////////
 	srandom(time(NULL));
     /* parse argc/argv */
+	rc = btc_parse_args(argc, argv);
+	if (rc != 0) return rc;
 	// load default configure if exits
 	cfg("#load bitcoin.conf");
 	// global log level

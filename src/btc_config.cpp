@@ -24,7 +24,7 @@ int btc_inih_handler(void* user, const char* section, const char* name,const cha
 
 	dictReplace(d, sdsnew(name), sdsnew(value));
 
-	if(strcmp(name, "btc.p2p") == 0){
+	if(strcmp(name, "connect") == 0){
 		/* addr=137.134.23.25:8339 */
 		char bind_[128] = "";
 		int port_ = 0;
@@ -38,8 +38,22 @@ int btc_inih_handler(void* user, const char* section, const char* name,const cha
 		dictReplace(d, sdsnew("btc.p2p.ip"), sdsnew(bind_));
 		dictReplace(d, sdsnew("btc.p2p.port"), sdsfromlonglong(port_));
 	}
+	else if(strcmp(name, "bind") == 0){
+		/* addr=137.134.23.25:8339 */
+		char bind_[128] = "";
+		int port_ = 0;
 
-	return 1;
+		if(value && strlen(value) > 0){
+			int n = sscanf(value, "%[^:]:%d", bind_, &port_);
+			if(n < 1){
+				return 0;
+			}
+		}
+		dictReplace(d, sdsnew("btc.port"), sdsfromlonglong(port_));
+	}
+	else if(strcmp(name, "debug") == 0){
+		dictReplace(d, sdsnew("loglevel"), sdsnew(strcmp(value, "all") == 0? "9" : "1"));
+	}	return 1;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
