@@ -1,0 +1,4 @@
+[submodule "src/test/btcc"]
+	path = src/test/btcc
+	url = git@github.com:hongjunliao/bitcoin.git
+	branch = btcc
