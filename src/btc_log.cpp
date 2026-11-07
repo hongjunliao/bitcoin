@@ -46,7 +46,7 @@ int btc_log_p2p( btc_p2p_hdr const * hdr, btc_p2p_payload const * pl, int flags)
 }
 
 
-BOOST_AUTO_TEST_SUITE()
+BOOST_AUTO_TEST_SUITE(btcc)
 BOOST_AUTO_TEST_CASE(_01)
 {
 	btc_p2p_hdr hdrobj, * hdr = &hdrobj; btc_p2p_payload payloadobj, *payload = &payloadobj;

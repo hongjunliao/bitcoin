@@ -81,8 +81,8 @@ static int des_cmpctsize(uint32_t & t, const char *buf)
 static void compute_checksum(const uint8_t *data, size_t len, uint8_t *checksum) {
     uint8_t hash1[SHA256_DIGEST_LENGTH];
     uint8_t hash2[SHA256_DIGEST_LENGTH];
-    SHA256(data, len, hash1);
-    SHA256(hash1, SHA256_DIGEST_LENGTH, hash2);
+    // SHA256(data, len, hash1);
+    // SHA256(hash1, SHA256_DIGEST_LENGTH, hash2);
     memcpy(checksum, hash2, 4);
 }
 
@@ -230,7 +230,7 @@ int btc_p2pmsg_parse(char const * buf, size_t  len, btc_p2p_hdr * hdr, btc_p2p_p
 	return 0;
 }
 
-BOOST_AUTO_TEST_SUITE()
+BOOST_AUTO_TEST_SUITE(btcc)
 BOOST_AUTO_TEST_CASE(node)
 {
 	btc_p2pmsg_parse(0, 0, 0, 0);

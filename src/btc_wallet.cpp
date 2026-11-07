@@ -42,8 +42,8 @@ void base58check_encode(const unsigned char *data, size_t data_len, char *output
     // 计算 SHA256 两次
     unsigned char hash1[SHA256_DIGEST_LENGTH];
     unsigned char hash2[SHA256_DIGEST_LENGTH];
-    SHA256(data, data_len, hash1);
-    SHA256(hash1, SHA256_DIGEST_LENGTH, hash2);
+    // SHA256(data, data_len, hash1);
+    // SHA256(hash1, SHA256_DIGEST_LENGTH, hash2);
 
     // 拼接数据 + 前 4 字节校验码
     auto temp = (unsigned char *)malloc(data_len + 4);
@@ -265,10 +265,10 @@ int wallet_main() {
 
     // SHA256 哈希
     unsigned char sha256_hash[SHA256_DIGEST_LENGTH];
-    SHA256(compressed_pubkey, 33, sha256_hash);
+    // SHA256(compressed_pubkey, 33, sha256_hash);
 
     // RIPEMD160 哈希
-    RIPEMD160(sha256_hash, SHA256_DIGEST_LENGTH, hash);
+    // RIPEMD160(sha256_hash, SHA256_DIGEST_LENGTH, hash);
 
     // 构造地址数据（testnet 前缀 0x6F）
     address_data[0] = 0x6F; // Testnet P2PKH 前缀

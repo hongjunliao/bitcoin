@@ -41,6 +41,7 @@ int btc_get_genesis_hash(sds datadir, sds blockdir)
     assert(count == 1);
     auto tran = btck_block_get_transaction_at(block, 0);
     auto vin = btck_transaction_get_input_at(tran, 0);
+
     rc = btck_transaction_input_get_script_sig(vin, btck_WriteBytes_cb, 0);
     assert(rc == 0);
 
