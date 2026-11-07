@@ -5,6 +5,7 @@
 # Do not use generator expressions in test sources because the
 # SOURCES property is processed to gather test suite macros.
 add_subdirectory(boss)
+add_subdirectory(btcc)
 add_executable(test_bitcoin
   main.cpp
   addrman_tests.cpp
