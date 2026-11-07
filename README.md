@@ -1,3 +1,5 @@
+# 该项目已并入[bitcoin/src/test/btcc](https://github.com/hongjunliao/bitcoin)
+
 ### bitcoin core源码学习
 
 #### 主要目标	
@@ -18,3 +20,8 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 #debug构建
 
 #### run
 ./cmake-build-debug/btcc --run_test=block/genesis --  -datadir=/home/jun/bitcoin/datadir/boss
+
+# 进度
+	1.p2p:解析并得到mainet的version等消息
+	2.block:通过libbitcoinkernel提取genesis block的coinbase,成功显示"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
+	3.网络：用3个节点,模拟gossip协议广播到全网
